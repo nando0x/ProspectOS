@@ -20,8 +20,7 @@ Raspe, filtre, priorize e acompanhe leads de pequenos negócios locais que ainda
 
 [![GitHub stars](https://img.shields.io/github/stars/nando0x/ProspectOS?style=social)](https://github.com/nando0x/ProspectOS)
 
-<!-- 📸 Placeholder: screenshot do dashboard combinado (Maps + Instagram) -->
-<!-- <img src="docs/screenshot-dashboard.png" alt="Dashboard do ProspectOS" width="800" /> -->
+<img src="https://res.cloudinary.com/doqqbpc2u/image/upload/v1783540529/ProspecOS_Print_pfnrc9.png" alt="Dashboard do ProspectOS" width="800" />
 
 <!-- 🎬 Placeholder: GIF de demo (buscar, filtrar, gerar mensagem, mover no Kanban) -->
 <!-- <img src="docs/demo.gif" alt="Demo do ProspectOS" width="800" /> -->

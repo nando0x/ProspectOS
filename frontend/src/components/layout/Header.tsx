@@ -14,11 +14,9 @@ export function Header({ onNovaBusca, onVerIgnorados }: HeaderProps) {
     <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
-            <MapPin className="size-5" />
-          </div>
+          <img src="/logo-icon.svg" alt="ProspectOS" className="size-9" />
           <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
-            Prospecção
+            ProspectOS
           </h1>
         </Link>
 
