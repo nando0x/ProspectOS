@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { instagramService } from "@/services/instagramService"
+import { tocarSom } from "@/hooks/useSom"
 import type { StatusLead } from "@/types/lead"
 
 export function useBulkMutationsInstagram(postId: number) {
@@ -14,6 +15,7 @@ export function useBulkMutationsInstagram(postId: number) {
     queryClient.invalidateQueries({ queryKey: ["instagram-nichos"] })
     queryClient.invalidateQueries({ queryKey: ["metricas-combinadas"] })
     queryClient.invalidateQueries({ queryKey: ["follow-ups-hoje"] })
+    queryClient.invalidateQueries({ queryKey: ["meta-semanal"] })
   }
 
   const atualizarStatusEmLote = useMutation({
@@ -38,6 +40,7 @@ export function useBulkMutationsInstagram(postId: number) {
       instagramService.excluirEmLoteDefinitivamente(leadIds),
     onSuccess: (resposta) => {
       invalidar()
+      tocarSom("apagar-lead")
       toast.success(`${resposta.excluidos} lead(s) excluído(s) definitivamente.`)
     },
   })

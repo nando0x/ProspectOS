@@ -9,4 +9,15 @@ export const configService = {
       chave,
       valor,
     }),
+
+  obterProxiesScraper: () =>
+    httpClient.get<{ configurado: boolean; proxies: string }>(
+      "/api/configuracoes/scraper-proxies"
+    ),
+
+  salvarProxiesScraper: (proxies: string) =>
+    httpClient.post<{ ok: true; configurado: boolean }>(
+      "/api/configuracoes/scraper-proxies",
+      { proxies }
+    ),
 }

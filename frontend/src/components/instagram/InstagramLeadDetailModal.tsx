@@ -25,7 +25,7 @@ import { PrioridadeBadge } from "@/components/instagram/PrioridadeBadge"
 import { DeleteLeadButton } from "@/components/lead-detail/DeleteLeadButton"
 import { TemplateSelector } from "@/components/shared/TemplateSelector"
 import { LABEL_STATUS } from "@/lib/constants"
-import { formatarDataHora } from "@/lib/formatters"
+import { formatarTempoRelativo } from "@/lib/formatters"
 import { STATUS_VALIDOS, type StatusLead } from "@/types/lead"
 import type { LeadInstagram } from "@/types/instagram"
 
@@ -223,7 +223,13 @@ export function InstagramLeadDetailModal({
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => mutations.marcarFollowupEnviado.mutate()}
+                    onClick={() =>
+                      mutations.marcarFollowupEnviado.mutate({
+                        followUpsEnviadosAnterior: lead.follow_ups_enviados,
+                        ultimoFollowupEmAnterior: lead.ultimo_followup_em,
+                        proximoFollowupAnterior: lead.proximo_followup,
+                      })
+                    }
                     disabled={mutations.marcarFollowupEnviado.isPending}
                   >
                     Marquei follow-up
@@ -232,7 +238,7 @@ export function InstagramLeadDetailModal({
                     <p className="text-xs text-muted-foreground">
                       {lead.follow_ups_enviados} follow-up(s) enviado(s)
                       {lead.ultimo_followup_em &&
-                        ` · último em ${formatarDataHora(lead.ultimo_followup_em)}`}
+                        ` · último em ${formatarTempoRelativo(lead.ultimo_followup_em)}`}
                     </p>
                   )}
                 </div>

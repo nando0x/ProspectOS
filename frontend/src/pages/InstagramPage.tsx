@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { SearchInput } from "@/components/filters/SearchInput"
 import { StatusSelect } from "@/components/filters/StatusSelect"
 import { NichoSelectInstagram } from "@/components/filters/NichoSelectInstagram"
+import { OrdenacaoPrioridadeSelect } from "@/components/filters/OrdenacaoPrioridadeSelect"
 import { InstagramProgress } from "@/components/instagram/InstagramProgress"
 import { InstagramBanner } from "@/components/instagram/InstagramBanner"
 import { PostList } from "@/components/instagram/PostList"
@@ -16,6 +17,7 @@ import { useAnaliseInstagram } from "@/hooks/useAnaliseInstagram"
 import { ApiError } from "@/services/httpClient"
 import { urlExportarCsvInstagram } from "@/services/instagramService"
 import type { StatusLead } from "@/types/lead"
+import type { OrdenacaoPrioridade } from "@/lib/constants"
 
 export function InstagramPage() {
   const [url, setUrl] = useState("")
@@ -24,6 +26,8 @@ export function InstagramPage() {
   const [filtroStatus, setFiltroStatus] = useState<StatusLead | "">("")
   const [filtroNicho, setFiltroNicho] = useState("")
   const [busca, setBusca] = useState("")
+  const [ordenacaoPrioridade, setOrdenacaoPrioridade] =
+    useState<OrdenacaoPrioridade>("")
   const { dispararAnalise, statusAnalise, pollingAtivo } = useAnaliseInstagram()
 
   const handleAnalisar = () => {
@@ -106,6 +110,10 @@ export function InstagramPage() {
                   valor={filtroNicho}
                   onChange={setFiltroNicho}
                 />
+                <OrdenacaoPrioridadeSelect
+                  valor={ordenacaoPrioridade}
+                  onChange={setOrdenacaoPrioridade}
+                />
                 <Button variant="outline" size="sm" asChild>
                   <a href={urlExportarCsvInstagram(postSelecionadoId)}>
                     <Download className="size-4" />
@@ -119,6 +127,7 @@ export function InstagramPage() {
               filtroStatus={filtroStatus}
               filtroNicho={filtroNicho}
               busca={busca}
+              ordenacaoPrioridade={ordenacaoPrioridade}
             />
           </div>
         )}

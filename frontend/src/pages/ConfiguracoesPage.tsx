@@ -3,6 +3,8 @@ import { Link } from "react-router-dom"
 import { Header } from "@/components/layout/Header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ProvedorApiCard } from "@/components/configuracoes/ProvedorApiCard"
+import { ScraperProxyCard } from "@/components/configuracoes/ScraperProxyCard"
+import { SomConfigCard } from "@/components/configuracoes/SomConfigCard"
 import { useConfiguracoes } from "@/hooks/useConfiguracoes"
 
 const TITULOS: Record<"gemini" | "groq" | "nvidia", string> = {
@@ -56,6 +58,26 @@ export function ConfiguracoesPage() {
             ))}
           </div>
         )}
+
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">
+            Busca no Google Maps
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Configurações avançadas do scraper de leads.
+          </p>
+        </div>
+
+        <ScraperProxyCard />
+
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Sons</h2>
+          <p className="text-sm text-muted-foreground">
+            Controle os sons de feedback do sistema.
+          </p>
+        </div>
+
+        <SomConfigCard />
       </main>
     </div>
   )

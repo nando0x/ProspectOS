@@ -6,13 +6,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { TemplateSelector } from "@/components/shared/TemplateSelector"
 import { useClipboard } from "@/hooks/useClipboard"
-import { formatarDataHora } from "@/lib/formatters"
+import { formatarTempoRelativo } from "@/lib/formatters"
 import type { UseMutationResult } from "@tanstack/react-query"
-import type {
-  GerarMensagemResposta,
-  Lead,
-  RespostaMarcarFollowup,
-} from "@/types/lead"
+import type { GerarMensagemResposta, Lead } from "@/types/lead"
 
 interface LeadMessageGeneratorProps {
   lead: Lead
@@ -23,9 +19,13 @@ interface LeadMessageGeneratorProps {
     unknown
   >
   marcarFollowupEnviado: UseMutationResult<
-    RespostaMarcarFollowup,
+    unknown,
     Error,
-    void,
+    {
+      followUpsEnviadosAnterior: number
+      ultimoFollowupEmAnterior: string | null
+      proximoFollowupAnterior: string | null
+    },
     unknown
   >
 }
@@ -111,7 +111,13 @@ export function LeadMessageGenerator({
         <Button
           size="sm"
           variant="secondary"
-          onClick={() => marcarFollowupEnviado.mutate()}
+          onClick={() =>
+            marcarFollowupEnviado.mutate({
+              followUpsEnviadosAnterior: lead.follow_ups_enviados,
+              ultimoFollowupEmAnterior: lead.ultimo_followup_em,
+              proximoFollowupAnterior: lead.proximo_followup,
+            })
+          }
           disabled={marcarFollowupEnviado.isPending}
         >
           Marquei follow-up
@@ -120,7 +126,7 @@ export function LeadMessageGenerator({
           <p className="text-xs text-muted-foreground">
             {lead.follow_ups_enviados} follow-up(s) enviado(s)
             {lead.ultimo_followup_em &&
-              ` · último em ${formatarDataHora(lead.ultimo_followup_em)}`}
+              ` · último em ${formatarTempoRelativo(lead.ultimo_followup_em)}`}
           </p>
         )}
       </div>

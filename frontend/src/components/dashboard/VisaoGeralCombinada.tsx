@@ -2,13 +2,10 @@ import { Link } from "react-router-dom"
 import { Clock } from "lucide-react"
 import { StatTile } from "@/components/dashboard/StatTile"
 import { Skeleton } from "@/components/ui/skeleton"
+import { MetaSemanalCard } from "@/components/dashboard/MetaSemanalCard"
 import { useFollowUpsHoje, useMetricasCombinadas } from "@/hooks/useCombinado"
 import { LABEL_STATUS } from "@/lib/constants"
-
-function formatarData(dataISO: string): string {
-  const [ano, mes, dia] = dataISO.split("-")
-  return `${dia}/${mes}/${ano}`
-}
+import { formatarTempoRelativo } from "@/lib/formatters"
 
 export function VisaoGeralCombinada() {
   const { data: metricas, isLoading } = useMetricasCombinadas()
@@ -27,6 +24,8 @@ export function VisaoGeralCombinada() {
 
   return (
     <div className="space-y-4">
+      <MetaSemanalCard />
+
       <div>
         <h2 className="mb-2 text-sm font-medium text-muted-foreground">
           Visão geral (Google Maps + Instagram)
@@ -73,8 +72,10 @@ export function VisaoGeralCombinada() {
                   <p className="truncate font-medium">{lead.titulo}</p>
                   <p className="text-xs text-muted-foreground">
                     {lead.canal === "maps" ? "Google Maps" : "Instagram"} ·{" "}
-                    {LABEL_STATUS[lead.status]} · venceu em{" "}
-                    {formatarData(lead.proximo_followup)}
+                    {LABEL_STATUS[lead.status]} ·{" "}
+                    {formatarTempoRelativo(lead.proximo_followup) === "hoje"
+                      ? "vence hoje"
+                      : `venceu ${formatarTempoRelativo(lead.proximo_followup)}`}
                   </p>
                 </div>
                 <Link

@@ -1,15 +1,27 @@
 import { useState } from "react"
 import { AnimatePresence } from "framer-motion"
-import { LayoutGrid, List, Loader2 } from "lucide-react"
+import { LayoutGrid, List, Loader2, Trash2 } from "lucide-react"
 import { useLeads } from "@/hooks/useLeads"
 import { useSelecaoLeads } from "@/hooks/useSelecaoLeads"
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver"
+import { useBulkMutations } from "@/hooks/useBulkMutations"
 import { LeadCard } from "@/components/leads/LeadCard"
 import { EmptyState } from "@/components/leads/EmptyState"
 import { BulkActionsBar } from "@/components/leads/BulkActionsBar"
 import { KanbanBoard } from "@/components/leads/KanbanBoard"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import type { FiltrosLeads, Lead } from "@/types/lead"
 
@@ -36,6 +48,8 @@ export function LeadGrid({
   const { leads, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } =
     useLeads(filtrosEfetivos)
   const { selecionados, alternar, limpar, quantidade } = useSelecaoLeads()
+  const { excluirEmLoteDefinitivamente } = useBulkMutations()
+  const modoIgnorados = filtros.status === "ignorado"
 
   const sentinelaRef = useIntersectionObserver(
     () => fetchNextPage(),
@@ -92,6 +106,46 @@ export function LeadGrid({
             Kanban
           </Button>
         </div>
+
+        {modoIgnorados && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="size-4" />
+                Esvaziar ignorados
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Excluir todos os {leads.length} lead(s) ignorado(s)?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Isso apaga de vez todos os leads ignorados carregados nesta
+                  lista. Não tem como desfazer, e se a mesma busca rodar de
+                  novo no futuro, eles podem voltar a aparecer como leads
+                  novos.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() =>
+                    excluirEmLoteDefinitivamente.mutate(
+                      leads.map((l) => l.place_id)
+                    )
+                  }
+                >
+                  Excluir todos
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
 
       {visualizacao === "kanban" ? (
@@ -131,7 +185,7 @@ export function LeadGrid({
           <BulkActionsBar
             placeIdsSelecionados={Array.from(selecionados)}
             onLimparSelecao={limpar}
-            modoIgnorados={filtros.status === "ignorado"}
+            modoIgnorados={modoIgnorados}
           />
         )}
       </AnimatePresence>

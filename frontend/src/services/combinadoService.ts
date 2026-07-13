@@ -1,5 +1,5 @@
 import { httpClient } from "@/services/httpClient"
-import type { FollowUpHoje, MetricasCombinadas } from "@/types/combinado"
+import type { FollowUpHoje, MetaSemanal, MetricasCombinadas } from "@/types/combinado"
 import type { FunilResposta, PorNichoResposta } from "@/types/analytics"
 
 export const combinadoService = {
@@ -14,4 +14,9 @@ export const combinadoService = {
 
   porNichoCombinado: () =>
     httpClient.get<PorNichoResposta>("/api/analytics/por-nicho-combinado"),
+
+  metaSemanal: () => httpClient.get<MetaSemanal>("/api/meta-semanal"),
+
+  salvarMetaSemanal: (meta: number) =>
+    httpClient.post<{ ok: true; meta: number }>("/api/meta-semanal", { meta }),
 }

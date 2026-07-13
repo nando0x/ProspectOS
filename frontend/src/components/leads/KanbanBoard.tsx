@@ -16,6 +16,7 @@ import { LABEL_STATUS, COR_STATUS } from "@/lib/constants"
 import { KanbanCard } from "@/components/leads/KanbanCard"
 import { leadsService } from "@/services/leadsService"
 import { useInvalidarLeads } from "@/hooks/useInvalidarLeads"
+import { tocarSom } from "@/hooks/useSom"
 import type { Lead, StatusLead } from "@/types/lead"
 
 const COLUNAS_FUNIL: StatusLead[] = ["novo", "contatado", "respondeu", "fechou"]
@@ -111,6 +112,7 @@ export function KanbanBoard({ leads, onSelecionarLead }: KanbanBoardProps) {
     leadsService.atualizarStatus(lead.place_id, novoStatus).then(
       () => {
         invalidarListaEMetricas()
+        tocarSom(novoStatus === "fechou" ? "lead-fechou" : "card-movido")
         toast.success(`Movido para ${LABEL_STATUS[novoStatus]}.`)
       },
       () => toast.error("Não foi possível mover o lead. Tente novamente.")

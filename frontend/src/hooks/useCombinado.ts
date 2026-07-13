@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { combinadoService } from "@/services/combinadoService"
 
 export function useMetricasCombinadas() {
@@ -28,5 +29,23 @@ export function usePorNichoCombinado() {
   return useQuery({
     queryKey: ["analytics", "por-nicho-combinado"],
     queryFn: combinadoService.porNichoCombinado,
+  })
+}
+
+export function useMetaSemanal() {
+  return useQuery({
+    queryKey: ["meta-semanal"],
+    queryFn: combinadoService.metaSemanal,
+  })
+}
+
+export function useSalvarMetaSemanal() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (meta: number) => combinadoService.salvarMetaSemanal(meta),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["meta-semanal"] })
+      toast.success("Meta semanal salva.")
+    },
   })
 }

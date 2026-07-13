@@ -1,19 +1,35 @@
 import { AnimatePresence } from "framer-motion"
 import { useState } from "react"
-import { Users } from "lucide-react"
+import { Trash2, Users } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { useLeadsInstagram } from "@/hooks/useLeadsInstagram"
 import { useSelecaoLeadsInstagram } from "@/hooks/useSelecaoLeadsInstagram"
+import { useBulkMutationsInstagram } from "@/hooks/useBulkMutationsInstagram"
 import { InstagramLeadCard } from "@/components/instagram/InstagramLeadCard"
 import { InstagramBulkActionsBar } from "@/components/instagram/InstagramBulkActionsBar"
 import { InstagramLeadDetailModal } from "@/components/instagram/InstagramLeadDetailModal"
 import type { StatusLead } from "@/types/lead"
+import type { OrdenacaoPrioridade } from "@/lib/constants"
+import { ordenarPorPrioridade } from "@/lib/constants"
 
 interface LeadsDoPostProps {
   postId: number
   filtroStatus: StatusLead | ""
   filtroNicho: string
   busca: string
+  ordenacaoPrioridade: OrdenacaoPrioridade
 }
 
 export function LeadsDoPost({
@@ -21,18 +37,22 @@ export function LeadsDoPost({
   filtroStatus,
   filtroNicho,
   busca,
+  ordenacaoPrioridade,
 }: LeadsDoPostProps) {
-  const { leads, isLoading } = useLeadsInstagram(postId, {
+  const { leads: leadsSemOrdenar, isLoading } = useLeadsInstagram(postId, {
     status: filtroStatus,
     nicho: filtroNicho,
     busca,
   })
+  const leads = ordenarPorPrioridade(leadsSemOrdenar, ordenacaoPrioridade)
   const { selecionados, alternar, limpar, quantidade } =
     useSelecaoLeadsInstagram()
   const [leadIdSelecionado, setLeadIdSelecionado] = useState<number | null>(
     null
   )
   const leadDetalhe = leads.find((l) => l.id === leadIdSelecionado) ?? null
+  const { excluirEmLoteDefinitivamente } = useBulkMutationsInstagram(postId)
+  const modoIgnorados = filtroStatus === "ignorado"
 
   if (isLoading) {
     return (
@@ -57,6 +77,44 @@ export function LeadsDoPost({
 
   return (
     <div>
+      {modoIgnorados && (
+        <div className="mb-3 flex justify-end">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="size-4" />
+                Esvaziar ignorados
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Excluir todos os {leads.length} lead(s) ignorado(s)?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Isso apaga de vez todos os leads ignorados carregados nesta
+                  lista. Não tem como desfazer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() =>
+                    excluirEmLoteDefinitivamente.mutate(leads.map((l) => l.id))
+                  }
+                >
+                  Excluir todos
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {leads.map((lead) => (
           <InstagramLeadCard
@@ -80,7 +138,7 @@ export function LeadsDoPost({
             postId={postId}
             leadIdsSelecionados={Array.from(selecionados)}
             onLimparSelecao={limpar}
-            modoIgnorados={filtroStatus === "ignorado"}
+            modoIgnorados={modoIgnorados}
           />
         )}
       </AnimatePresence>

@@ -17,6 +17,34 @@ export function formatarDataHora(iso: string): string {
   }
 }
 
+export function formatarTempoRelativo(data: string): string {
+  const alvo = data.length === 10 ? new Date(`${data}T00:00:00`) : new Date(data)
+  if (Number.isNaN(alvo.getTime())) return data
+
+  const agora = new Date()
+  const diffMs = agora.getTime() - alvo.getTime()
+  const diffMin = Math.round(diffMs / 60_000)
+
+  if (diffMin < 0) {
+    return data.length === 10 ? formatarData(data) : formatarDataHora(data)
+  }
+  if (diffMin < 1) return "agora"
+  if (diffMin < 60) return `há ${diffMin} minuto${diffMin === 1 ? "" : "s"}`
+
+  const diffHoras = Math.round(diffMin / 60)
+  if (diffHoras < 24) return `há ${diffHoras} hora${diffHoras === 1 ? "" : "s"}`
+
+  const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate())
+  const inicioAlvo = new Date(alvo.getFullYear(), alvo.getMonth(), alvo.getDate())
+  const diffDias = Math.round((inicioHoje.getTime() - inicioAlvo.getTime()) / 86_400_000)
+
+  if (diffDias === 0) return "hoje"
+  if (diffDias === 1) return "ontem"
+  if (diffDias < 7) return `há ${diffDias} dias`
+
+  return data.length === 10 ? formatarData(data) : formatarDataHora(data)
+}
+
 export function hojeISO(): string {
   const agora = new Date()
   const ano = agora.getFullYear()

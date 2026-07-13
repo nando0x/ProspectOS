@@ -5,7 +5,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { useInstagramLeadHistorico } from "@/hooks/useInstagramLeadHistorico"
-import { formatarDataHora } from "@/lib/formatters"
+import { formatarTempoRelativo } from "@/lib/formatters"
 import { LABEL_STATUS } from "@/lib/constants"
 
 interface InstagramLeadHistoryAccordionProps {
@@ -54,7 +54,7 @@ function HistoricoConteudo({ leadId }: { leadId: number }) {
           {" → "}
           <span className="font-medium">{LABEL_STATUS[item.status_novo]}</span>
           <span className="ml-2 text-xs text-muted-foreground">
-            {formatarDataHora(item.alterado_em)}
+            {formatarTempoRelativo(item.alterado_em)}
           </span>
         </div>
       ))}

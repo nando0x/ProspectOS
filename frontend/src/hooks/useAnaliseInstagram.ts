@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { instagramService } from "@/services/instagramService"
+import { tocarSom } from "@/hooks/useSom"
 import type { EstadoAnaliseInstagram } from "@/types/instagram"
 
 export function useAnaliseInstagram() {
@@ -32,6 +33,7 @@ export function useAnaliseInstagram() {
       setPoll(false)
       setResultadoFinal(statusAnalise.data)
       queryClient.invalidateQueries({ queryKey: ["instagram-posts"] })
+      tocarSom("analise-instagram-concluida")
     }
   }, [poll, statusAnalise.data, queryClient])
 

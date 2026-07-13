@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { InstagramIcon } from "@/components/icons/InstagramIcon"
 import { DeleteLeadButton } from "@/components/lead-detail/DeleteLeadButton"
 import { cn } from "@/lib/utils"
+import { formatarTempoRelativo } from "@/lib/formatters"
 import type { PostInstagram } from "@/types/instagram"
 
 interface PostCardProps {
@@ -67,7 +68,7 @@ export function PostCard({
             </p>
             <p className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="size-3" />
-              {new Date(post.criado_em).toLocaleString("pt-BR")}
+              {formatarTempoRelativo(post.criado_em)}
             </p>
           </div>
         </div>

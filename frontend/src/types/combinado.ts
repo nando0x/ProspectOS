@@ -18,3 +18,11 @@ export interface FollowUpHoje {
   status: StatusLead
   canal: CanalLead
 }
+
+export interface MetaSemanal {
+  meta: number
+  progresso: number
+  faltam: number
+  porcentagem: number
+  inicio_semana: string
+}

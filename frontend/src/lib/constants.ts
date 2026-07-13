@@ -39,3 +39,26 @@ export const OPCOES_NOTA_MINIMA = [
   { valor: "4.5", label: "Nota ≥ 4.5" },
   { valor: "5", label: "Nota = 5.0" },
 ] as const
+
+const PESO_PRIORIDADE: Record<PrioridadeLead, number> = {
+  alta: 3,
+  media: 2,
+  baixa: 1,
+  descartado: 0,
+}
+
+export type OrdenacaoPrioridade = "" | "prioridade-desc" | "prioridade-asc"
+
+export function ordenarPorPrioridade<T extends { prioridade: PrioridadeLead | null }>(
+  leads: T[],
+  ordenacao: OrdenacaoPrioridade
+): T[] {
+  if (!ordenacao) return leads
+
+  const sinal = ordenacao === "prioridade-desc" ? -1 : 1
+  return [...leads].sort((a, b) => {
+    const pesoA = a.prioridade ? PESO_PRIORIDADE[a.prioridade] : -1
+    const pesoB = b.prioridade ? PESO_PRIORIDADE[b.prioridade] : -1
+    return (pesoA - pesoB) * sinal
+  })
+}

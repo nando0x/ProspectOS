@@ -24,6 +24,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, render_template, request
+from flask_cors import CORS
 
 import processar
 
@@ -203,6 +204,23 @@ def atualizar_configuracao():
     return jsonify({"ok": True, "mascarada": mascarar_chave(valor)})
 
 
+@app.route("/api/configuracoes/scraper-proxies")
+def obter_proxies_scraper():
+    proxies = obter_config("scraper_proxies") or ""
+    return jsonify({"configurado": bool(proxies), "proxies": proxies})
+
+
+@app.route("/api/configuracoes/scraper-proxies", methods=["POST"])
+def salvar_proxies_scraper():
+    """Salva a lista de proxies (opcional) usada pelo google-maps-scraper.exe -
+    formato aceito pelo scraper: protocol://user:pass@host:port, separados por
+    vírgula. Útil quando o Google bloqueia buscas repetidas vindas do mesmo IP."""
+    dados = request.json or {}
+    proxies = str(dados.get("proxies", "")).strip()
+    salvar_config("scraper_proxies", proxies)
+    return jsonify({"ok": True, "configurado": bool(proxies)})
+
+
 @app.errorhandler(Exception)
 def tratar_erro_generico(erro):
     logger.exception("erro não tratado numa rota")
@@ -319,7 +337,8 @@ def metricas():
         ).fetchall()
         lembretes_hoje = conexao.execute(
             "SELECT COUNT(*) c FROM leads WHERE status != 'ignorado' AND proximo_followup IS NOT NULL "
-            "AND proximo_followup <= date('now')"
+            "AND proximo_followup <= ?",
+            (date.today().isoformat(),),
         ).fetchone()["c"]
     finally:
         conexao.close()
@@ -832,6 +851,46 @@ def marcar_followup_enviado(place_id):
     })
 
 
+@app.route("/api/leads/<place_id>/desfazer-followup-enviado", methods=["POST"])
+def desfazer_followup_enviado(place_id):
+    """Reverte um 'marcar follow-up enviado' feito por engano, restaurando os
+    valores anteriores enviados pelo cliente (capturados antes da marcação)."""
+    dados = request.json or {}
+    follow_ups_enviados_anterior = dados.get("follow_ups_enviados_anterior")
+    ultimo_followup_em_anterior = dados.get("ultimo_followup_em_anterior")
+    proximo_followup_anterior = dados.get("proximo_followup_anterior")
+
+    if follow_ups_enviados_anterior is None:
+        return jsonify({"erro": "follow_ups_enviados_anterior é obrigatório"}), 400
+
+    conexao = conectar()
+    try:
+        cursor = conexao.execute(
+            """
+            UPDATE leads
+            SET follow_ups_enviados = ?,
+                ultimo_followup_em = ?,
+                proximo_followup = ?,
+                atualizado_em = ?
+            WHERE place_id = ?
+            """,
+            (
+                follow_ups_enviados_anterior,
+                ultimo_followup_em_anterior,
+                proximo_followup_anterior,
+                datetime.now().isoformat(timespec="seconds"),
+                place_id,
+            ),
+        )
+        if cursor.rowcount == 0:
+            return jsonify({"erro": "lead não encontrado"}), 404
+        conexao.commit()
+    finally:
+        conexao.close()
+
+    return jsonify({"ok": True})
+
+
 def saudacao_por_horario():
     """Calcula a saudação certa a partir da hora real do sistema - a IA não tem
     acesso ao relógio, então isso precisa vir pronto do backend, nunca "adivinhado"
@@ -1297,16 +1356,21 @@ def _rodar_busca_em_background():
             "PLAYWRIGHT_NODEJS_PATH", r"C:\Program Files\nodejs\node.exe"
         )
 
+        comando_scraper = [
+            str(APP_DIR / "google-maps-scraper.exe"),
+            "-input", str(APP_DIR / "queries.txt"),
+            "-results", str(arquivo_bruto),
+            "-lang", "pt",
+            "-depth", "5",
+            "-exit-on-inactivity", "3m",
+        ]
+        proxies = obter_config("scraper_proxies")
+        if proxies:
+            comando_scraper += ["-proxies", proxies]
+
         try:
             returncode, stderr_completo = rodar_scraper_com_progresso(
-                comando=[
-                    str(APP_DIR / "google-maps-scraper.exe"),
-                    "-input", str(APP_DIR / "queries.txt"),
-                    "-results", str(arquivo_bruto),
-                    "-lang", "pt",
-                    "-depth", "5",
-                    "-exit-on-inactivity", "3m",
-                ],
+                comando=comando_scraper,
                 cwd=str(APP_DIR),
                 env=ambiente,
                 timeout_segundos=TIMEOUT_SCRAPER_SEGUNDOS,
@@ -1335,10 +1399,19 @@ def _rodar_busca_em_background():
         contagens = processar.processar(arquivo_bruto, callback_progresso=_callback_progresso_verificacao)
 
         if contagens["total_no_csv"] == 0:
-            estado_busca["mensagem"] = (
-                "Busca concluída, mas nenhuma empresa foi encontrada. Confira se o nicho/cidade "
-                "estão escritos corretamente."
-            )
+            if estado_busca["empresas_encontradas"] == 0:
+                estado_busca["mensagem"] = (
+                    "Busca concluída, mas o Google Maps não retornou nenhum resultado - o scraper "
+                    "rodou sem erro, só não conseguiu capturar nada. Isso geralmente é bloqueio "
+                    "temporário do Google para o seu IP/rede (comum em VPN, rede corporativa ou "
+                    "após várias buscas seguidas), não um erro de digitação. Tente novamente mais "
+                    "tarde ou numa rede diferente. Veja logs/prospeccao.log para mais detalhes."
+                )
+            else:
+                estado_busca["mensagem"] = (
+                    "Busca concluída, mas nenhuma empresa foi encontrada. Confira se o nicho/cidade "
+                    "estão escritos corretamente."
+                )
         elif contagens["novos"] == 0:
             estado_busca["mensagem"] = (
                 f"Busca concluída: nenhum lead novo. {contagens['total_no_csv']} empresa(s) encontrada(s), "
@@ -1980,6 +2053,45 @@ def marcar_followup_enviado_instagram(lead_id):
     })
 
 
+@app.route("/api/instagram/leads/<int:lead_id>/desfazer-followup-enviado", methods=["POST"])
+def desfazer_followup_enviado_instagram(lead_id):
+    """Reverte um 'marcar follow-up enviado' feito por engano (versão Instagram)."""
+    dados = request.json or {}
+    follow_ups_enviados_anterior = dados.get("follow_ups_enviados_anterior")
+    ultimo_followup_em_anterior = dados.get("ultimo_followup_em_anterior")
+    proximo_followup_anterior = dados.get("proximo_followup_anterior")
+
+    if follow_ups_enviados_anterior is None:
+        return jsonify({"erro": "follow_ups_enviados_anterior é obrigatório"}), 400
+
+    conexao = conectar()
+    try:
+        cursor = conexao.execute(
+            """
+            UPDATE instagram_leads
+            SET follow_ups_enviados = ?,
+                ultimo_followup_em = ?,
+                proximo_followup = ?,
+                atualizado_em = ?
+            WHERE id = ?
+            """,
+            (
+                follow_ups_enviados_anterior,
+                ultimo_followup_em_anterior,
+                proximo_followup_anterior,
+                datetime.now().isoformat(timespec="seconds"),
+                lead_id,
+            ),
+        )
+        if cursor.rowcount == 0:
+            return jsonify({"erro": "lead não encontrado"}), 404
+        conexao.commit()
+    finally:
+        conexao.close()
+
+    return jsonify({"ok": True})
+
+
 @app.route("/api/instagram/leads/<int:lead_id>/sugestao-dm", methods=["POST"])
 def salvar_sugestao_dm_instagram(lead_id):
     texto = str((request.json or {}).get("sugestao_dm", ""))
@@ -2179,7 +2291,8 @@ def metricas_instagram():
         ).fetchall()
         lembretes_hoje = conexao.execute(
             "SELECT COUNT(*) c FROM instagram_leads WHERE status != 'ignorado' AND proximo_followup IS NOT NULL "
-            "AND proximo_followup <= date('now')"
+            "AND proximo_followup <= ?",
+            (date.today().isoformat(),),
         ).fetchone()["c"]
     finally:
         conexao.close()
@@ -2215,9 +2328,11 @@ def metricas_combinadas():
                     "SELECT status, COUNT(*) c FROM leads WHERE status != 'ignorado' GROUP BY status"
                 ).fetchall()
             }
+        hoje_local = date.today().isoformat()
         lembretes_maps = conexao.execute(
             "SELECT COUNT(*) c FROM leads WHERE status != 'ignorado' AND proximo_followup IS NOT NULL "
-            "AND proximo_followup <= date('now')"
+            "AND proximo_followup <= ?",
+            (hoje_local,),
         ).fetchone()["c"] if CAMINHO_BANCO.exists() else 0
 
         total_instagram = conexao.execute(
@@ -2231,7 +2346,8 @@ def metricas_combinadas():
         }
         lembretes_instagram = conexao.execute(
             "SELECT COUNT(*) c FROM instagram_leads WHERE status != 'ignorado' AND proximo_followup IS NOT NULL "
-            "AND proximo_followup <= date('now')"
+            "AND proximo_followup <= ?",
+            (hoje_local,),
         ).fetchone()["c"]
     finally:
         conexao.close()
@@ -2253,26 +2369,83 @@ def metricas_combinadas():
     })
 
 
+CHAVE_CONFIG_META_SEMANAL = "meta_semanal_contatos"
+
+
+def inicio_semana_atual_iso():
+    """Segunda-feira desta semana, à meia-noite, em formato ISO - início do
+    período que a meta semanal de contatos considera."""
+    hoje = date.today()
+    segunda = hoje - timedelta(days=hoje.weekday())
+    return datetime.combine(segunda, datetime.min.time()).isoformat(timespec="seconds")
+
+
+@app.route("/api/meta-semanal")
+def obter_meta_semanal():
+    """Retorna a meta semanal configurada (leads contatados) e o progresso desde
+    a última segunda-feira, contando transições para 'contatado' nos dois canais."""
+    meta_str = obter_config(CHAVE_CONFIG_META_SEMANAL)
+    meta = int(meta_str) if meta_str and meta_str.isdigit() else 0
+
+    inicio_semana = inicio_semana_atual_iso()
+    conexao = conectar()
+    try:
+        contatos_maps = conexao.execute(
+            "SELECT COUNT(*) c FROM historico_status WHERE status_novo = 'contatado' AND alterado_em >= ?",
+            (inicio_semana,),
+        ).fetchone()["c"]
+        contatos_instagram = conexao.execute(
+            "SELECT COUNT(*) c FROM historico_status_instagram WHERE status_novo = 'contatado' AND alterado_em >= ?",
+            (inicio_semana,),
+        ).fetchone()["c"]
+    finally:
+        conexao.close()
+
+    progresso = contatos_maps + contatos_instagram
+    return jsonify({
+        "meta": meta,
+        "progresso": progresso,
+        "faltam": max(meta - progresso, 0) if meta else 0,
+        "porcentagem": round(100 * progresso / meta, 1) if meta else 0,
+        "inicio_semana": inicio_semana[:10],
+    })
+
+
+@app.route("/api/meta-semanal", methods=["POST"])
+def salvar_meta_semanal():
+    dados = request.json or {}
+    meta = dados.get("meta")
+
+    if not isinstance(meta, int) or meta < 0:
+        return jsonify({"erro": "meta deve ser um número inteiro maior ou igual a 0"}), 400
+
+    salvar_config(CHAVE_CONFIG_META_SEMANAL, str(meta))
+    return jsonify({"ok": True, "meta": meta})
+
+
 @app.route("/api/follow-ups-hoje")
 def follow_ups_hoje():
     """Lista os leads com follow-up vencido ou para hoje, dos dois canais juntos -
     ordenados pela data do follow-up (mais atrasado primeiro)."""
     conexao = conectar()
     try:
+        hoje_local = date.today().isoformat()
         leads_maps = []
         if CAMINHO_BANCO.exists():
             leads_maps = [
                 linha_para_dict(l) for l in conexao.execute(
                     "SELECT place_id, nome AS titulo, proximo_followup, status, 'maps' AS canal "
                     "FROM leads WHERE status != 'ignorado' AND proximo_followup IS NOT NULL "
-                    "AND proximo_followup <= date('now') ORDER BY proximo_followup"
+                    "AND proximo_followup <= ? ORDER BY proximo_followup",
+                    (hoje_local,),
                 ).fetchall()
             ]
         leads_instagram = [
             linha_para_dict(l) for l in conexao.execute(
                 "SELECT id AS place_id, username AS titulo, proximo_followup, status, 'instagram' AS canal "
                 "FROM instagram_leads WHERE status != 'ignorado' AND proximo_followup IS NOT NULL "
-                "AND proximo_followup <= date('now') ORDER BY proximo_followup"
+                "AND proximo_followup <= ? ORDER BY proximo_followup",
+                (hoje_local,),
             ).fetchall()
         ]
     finally:
@@ -2316,6 +2489,32 @@ def _callback_progresso_enriquecimento_instagram(indice, total, username):
 
 
 PRIORIDADES_VALIDAS_CLASSIFICACAO = {"alta", "media", "baixa", "descartado"}
+
+DOMINIOS_LINK_NA_BIO = (
+    "wa.me",
+    "api.whatsapp.com",
+    "whatsapp.com",
+    "linktr.ee",
+    "linkr.bio",
+    "beacons.ai",
+    "allmylinks.com",
+    "instagram.com",
+    "bio.link",
+    "linkbio.co",
+    "solo.to",
+    "campsite.bio",
+    "carrd.co",
+)
+
+
+def perfil_tem_site_proprio(perfil):
+    """Heurística determinística (sem custo de IA): considera 'site próprio' quando
+    o link da bio (external_url) aponta para um domínio que não é um agregador de
+    link conhecido (WhatsApp, Linktree e afins) - sinal de que o negócio já tem site."""
+    url = (perfil.get("external_url") or "").strip().lower()
+    if not url:
+        return False
+    return not any(dominio in url for dominio in DOMINIOS_LINK_NA_BIO)
 
 
 def montar_prompt_classificacao_instagram(perfil, nicho_alvo):
@@ -2473,6 +2672,8 @@ def _rodar_analise_instagram_em_background(post_id, post_url, nicho_alvo=None):
                 continue  # mesma regra do prompt manual: descarta privados sem gastar chamada de IA
             if perfil.get("erro"):
                 continue  # coleta do perfil falhou (rate limit, sessão expirada etc.) - não há dado real pra classificar
+            if perfil_tem_site_proprio(perfil):
+                continue  # já tem site próprio na bio - não é o perfil de lead que buscamos
             try:
                 classificacoes[perfil["username"]] = classificar_lead_instagram_com_fallback(perfil, nicho_alvo)
             except Exception as erro:
@@ -2482,16 +2683,25 @@ def _rodar_analise_instagram_em_background(post_id, post_url, nicho_alvo=None):
         try:
             for perfil in dados_enriquecidos["perfis"]:
                 classificacao = classificacoes.get(perfil["username"], {})
+                tem_site_proprio = perfil_tem_site_proprio(perfil)
                 observacoes = (
                     f"Perfil não avaliado - falha na coleta: {perfil['erro']}"
-                    if perfil.get("erro") else None
+                    if perfil.get("erro")
+                    else "Perfil ignorado automaticamente - já tem site próprio na bio."
+                    if tem_site_proprio
+                    else None
+                )
+                status_inicial = (
+                    "ignorado"
+                    if perfil.get("is_private") or tem_site_proprio
+                    else "novo"
                 )
                 conexao.execute(
                     """
                     INSERT INTO instagram_leads
                         (post_id, username, full_name, is_private, biography, seguidores, is_business_account, comentarios,
-                         prioridade, nicho, justificativa, sugestao_dm, observacoes, atualizado_em)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         prioridade, nicho, justificativa, sugestao_dm, observacoes, status, atualizado_em)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         post_id,
@@ -2507,6 +2717,7 @@ def _rodar_analise_instagram_em_background(post_id, post_url, nicho_alvo=None):
                         classificacao.get("justificativa"),
                         classificacao.get("sugestao_dm"),
                         observacoes,
+                        status_inicial,
                         datetime.now().isoformat(timespec="seconds"),
                     ),
                 )

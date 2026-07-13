@@ -1,18 +1,25 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { leadsService } from "@/services/leadsService"
 import { useInvalidarLeads } from "@/hooks/useInvalidarLeads"
+import { tocarSom } from "@/hooks/useSom"
 import type { StatusLead } from "@/types/lead"
 
+interface EstadoFollowupAnterior {
+  followUpsEnviadosAnterior: number
+  ultimoFollowupEmAnterior: string | null
+  proximoFollowupAnterior: string | null
+}
+
 export function useLeadMutations(placeId: string) {
-  const queryClient = useQueryClient()
   const invalidarListaEMetricas = useInvalidarLeads()
 
   const atualizarStatus = useMutation({
     mutationFn: (status: StatusLead) =>
       leadsService.atualizarStatus(placeId, status),
-    onSuccess: () => {
+    onSuccess: (_dados, status) => {
       invalidarListaEMetricas()
+      if (status === "fechou") tocarSom("lead-fechou")
       toast.success("Status atualizado.")
     },
   })
@@ -46,10 +53,27 @@ export function useLeadMutations(placeId: string) {
   })
 
   const marcarFollowupEnviado = useMutation({
-    mutationFn: () => leadsService.marcarFollowupEnviado(placeId),
-    onSuccess: (resposta) => {
+    mutationFn: (estadoAnterior: EstadoFollowupAnterior) =>
+      leadsService.marcarFollowupEnviado(placeId).then((resposta) => ({
+        resposta,
+        estadoAnterior,
+      })),
+    onSuccess: ({ resposta, estadoAnterior }) => {
       invalidarListaEMetricas()
-      toast.success(`Follow-up nº ${resposta.follow_ups_enviados} registrado.`)
+      tocarSom("followup-marcado")
+      toast.success(`Follow-up nº ${resposta.follow_ups_enviados} registrado.`, {
+        action: {
+          label: "Desfazer",
+          onClick: () => {
+            leadsService
+              .desfazerFollowupEnviado(placeId, estadoAnterior)
+              .then(() => {
+                invalidarListaEMetricas()
+                toast.success("Follow-up desfeito.")
+              })
+          },
+        },
+      })
     },
   })
 
@@ -62,8 +86,7 @@ export function useLeadMutations(placeId: string) {
           label: "Desfazer",
           onClick: () => {
             leadsService.atualizarStatus(placeId, statusAnterior).then(() => {
-              queryClient.invalidateQueries({ queryKey: ["leads"] })
-              queryClient.invalidateQueries({ queryKey: ["metricas"] })
+              invalidarListaEMetricas()
               toast.success("Lead restaurado.")
             })
           },
@@ -76,6 +99,7 @@ export function useLeadMutations(placeId: string) {
     mutationFn: () => leadsService.excluirDefinitivamente(placeId),
     onSuccess: () => {
       invalidarListaEMetricas()
+      tocarSom("apagar-lead")
       toast.success("Lead excluído definitivamente.")
     },
   })

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { buscaService } from "@/services/buscaService"
 import { useInvalidarLeads } from "@/hooks/useInvalidarLeads"
 import { notificar, pedirPermissaoNotificacao } from "@/hooks/useNotificacaoNavegador"
+import { tocarSom } from "@/hooks/useSom"
 import type { EstadoBusca } from "@/types/busca"
 
 export function useBusca() {
@@ -35,6 +36,7 @@ export function useBusca() {
       queryClient.invalidateQueries({ queryKey: ["nichos"] })
       invalidarListaEMetricas()
       notificar("Busca de leads concluída", statusBusca.data.mensagem)
+      tocarSom("busca-maps-concluida")
     }
   }, [poll, statusBusca.data, queryClient, invalidarListaEMetricas])
 

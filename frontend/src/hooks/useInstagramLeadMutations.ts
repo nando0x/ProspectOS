@@ -1,7 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { instagramService } from "@/services/instagramService"
+import { tocarSom } from "@/hooks/useSom"
 import type { StatusLead } from "@/types/lead"
+
+interface EstadoFollowupAnterior {
+  followUpsEnviadosAnterior: number
+  ultimoFollowupEmAnterior: string | null
+  proximoFollowupAnterior: string | null
+}
 
 export function useInstagramLeadMutations(leadId: number, postId: number) {
   const queryClient = useQueryClient()
@@ -14,13 +21,15 @@ export function useInstagramLeadMutations(leadId: number, postId: number) {
     queryClient.invalidateQueries({ queryKey: ["instagram-nichos"] })
     queryClient.invalidateQueries({ queryKey: ["metricas-combinadas"] })
     queryClient.invalidateQueries({ queryKey: ["follow-ups-hoje"] })
+    queryClient.invalidateQueries({ queryKey: ["meta-semanal"] })
   }
 
   const atualizarStatus = useMutation({
     mutationFn: (status: StatusLead) =>
       instagramService.atualizarStatus(leadId, status),
-    onSuccess: () => {
+    onSuccess: (_dados, status) => {
       invalidar()
+      if (status === "fechou") tocarSom("lead-fechou")
       toast.success("Status atualizado.")
     },
   })
@@ -61,10 +70,27 @@ export function useInstagramLeadMutations(leadId: number, postId: number) {
   })
 
   const marcarFollowupEnviado = useMutation({
-    mutationFn: () => instagramService.marcarFollowupEnviado(leadId),
-    onSuccess: (resposta) => {
+    mutationFn: (estadoAnterior: EstadoFollowupAnterior) =>
+      instagramService.marcarFollowupEnviado(leadId).then((resposta) => ({
+        resposta,
+        estadoAnterior,
+      })),
+    onSuccess: ({ resposta, estadoAnterior }) => {
       invalidar()
-      toast.success(`Follow-up nº ${resposta.follow_ups_enviados} registrado.`)
+      tocarSom("followup-marcado")
+      toast.success(`Follow-up nº ${resposta.follow_ups_enviados} registrado.`, {
+        action: {
+          label: "Desfazer",
+          onClick: () => {
+            instagramService
+              .desfazerFollowupEnviado(leadId, estadoAnterior)
+              .then(() => {
+                invalidar()
+                toast.success("Follow-up desfeito.")
+              })
+          },
+        },
+      })
     },
   })
 
@@ -91,6 +117,7 @@ export function useInstagramLeadMutations(leadId: number, postId: number) {
     mutationFn: () => instagramService.excluirDefinitivamente(leadId),
     onSuccess: () => {
       invalidar()
+      tocarSom("apagar-lead")
       toast.success("Lead excluído definitivamente.")
     },
   })

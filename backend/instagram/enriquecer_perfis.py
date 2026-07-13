@@ -70,6 +70,7 @@ def enriquecer_perfis(caminho_json: Path, callback_progresso=None) -> Path:
                 "biography": perfil.biography,
                 "seguidores": perfil.follower_count,
                 "is_business_account": perfil.is_business,
+                "external_url": perfil.external_url,
             })
         except UserNotFound:
             item["erro"] = "perfil não encontrado (pode ter sido removido ou renomeado)"

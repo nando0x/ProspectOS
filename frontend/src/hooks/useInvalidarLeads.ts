@@ -8,5 +8,6 @@ export function useInvalidarLeads() {
     queryClient.invalidateQueries({ queryKey: ["metricas"] })
     queryClient.invalidateQueries({ queryKey: ["metricas-combinadas"] })
     queryClient.invalidateQueries({ queryKey: ["follow-ups-hoje"] })
+    queryClient.invalidateQueries({ queryKey: ["meta-semanal"] })
   }
 }

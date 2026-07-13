@@ -22,3 +22,22 @@ export function useSalvarConfiguracao() {
     },
   })
 }
+
+export function useProxiesScraper() {
+  return useQuery({
+    queryKey: ["scraper-proxies"],
+    queryFn: configService.obterProxiesScraper,
+  })
+}
+
+export function useSalvarProxiesScraper() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (proxies: string) => configService.salvarProxiesScraper(proxies),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scraper-proxies"] })
+      toast.success("Configuração de proxy salva.")
+    },
+  })
+}

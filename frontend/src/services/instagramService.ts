@@ -112,6 +112,23 @@ export const instagramService = {
       `/api/instagram/leads/${leadId}/marcar-followup-enviado`
     ),
 
+  desfazerFollowupEnviado: (
+    leadId: number,
+    anterior: {
+      followUpsEnviadosAnterior: number
+      ultimoFollowupEmAnterior: string | null
+      proximoFollowupAnterior: string | null
+    }
+  ) =>
+    httpClient.post<{ ok: true }>(
+      `/api/instagram/leads/${leadId}/desfazer-followup-enviado`,
+      {
+        follow_ups_enviados_anterior: anterior.followUpsEnviadosAnterior,
+        ultimo_followup_em_anterior: anterior.ultimoFollowupEmAnterior,
+        proximo_followup_anterior: anterior.proximoFollowupAnterior,
+      }
+    ),
+
   gerarMensagem: (
     leadId: number,
     tipo: "contato" | "followup",

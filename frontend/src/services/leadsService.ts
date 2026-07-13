@@ -79,6 +79,23 @@ export const leadsService = {
       `/api/leads/${encodeURIComponent(placeId)}/marcar-followup-enviado`
     ),
 
+  desfazerFollowupEnviado: (
+    placeId: string,
+    anterior: {
+      followUpsEnviadosAnterior: number
+      ultimoFollowupEmAnterior: string | null
+      proximoFollowupAnterior: string | null
+    }
+  ) =>
+    httpClient.post<{ ok: true }>(
+      `/api/leads/${encodeURIComponent(placeId)}/desfazer-followup-enviado`,
+      {
+        follow_ups_enviados_anterior: anterior.followUpsEnviadosAnterior,
+        ultimo_followup_em_anterior: anterior.ultimoFollowupEmAnterior,
+        proximo_followup_anterior: anterior.proximoFollowupAnterior,
+      }
+    ),
+
   atualizarStatusEmLote: (placeIds: string[], status: StatusLead) =>
     httpClient.post<{ ok: true; atualizados: number }>(
       "/api/leads/bulk-status",
