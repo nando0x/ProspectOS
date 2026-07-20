@@ -145,8 +145,12 @@ if __name__ == "__main__":
     else:
         porta = escolher_porta(5000)
         # anuncia a porta pra quem iniciou o processo (shell do app de desktop lê
-        # o stdout; o arquivo cobre quem preferir ler do disco)
-        print(f"LISTENING_ON={porta}", flush=True)
+        # o stdout; o arquivo cobre quem preferir ler do disco). Empacotado sem
+        # console, sys.stdout pode ser None - o arquivo vira a fonte da verdade.
+        try:
+            print(f"LISTENING_ON={porta}", flush=True)
+        except Exception:
+            pass
         paths.caminho_dados("porta.txt", criar_pai=True).write_text(str(porta), encoding="utf-8")
         logger.info("servindo em http://127.0.0.1:%s", porta)
 

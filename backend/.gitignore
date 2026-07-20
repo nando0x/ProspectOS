@@ -16,3 +16,8 @@ instagram/sessao/
 instagram/comentarios/
 # porta escolhida em runtime (escrita pelo app.py a cada inicio)
 porta.txt
+# node portatil embutido no instalador (baixado no build, nao versionado)
+node/
+# artefatos de build do PyInstaller
+build/
+dist/

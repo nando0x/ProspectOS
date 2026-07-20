@@ -8,3 +8,6 @@ logs/
 
 # nota da release (rascunho local, nao versionar)
 release-*.md
+
+# saida compilada do instalador (85MB+, gerada por iscc)
+instalador/saida/
