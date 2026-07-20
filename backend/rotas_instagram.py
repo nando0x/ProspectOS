@@ -14,6 +14,7 @@ from flask import Blueprint, Response, jsonify, request
 import db
 import ia
 import jobs
+import paths
 from constantes import (
     MAX_CARACTERES_JUSTIFICATIVA,
     MAX_CARACTERES_NICHO_ALVO,
@@ -837,3 +838,76 @@ def listar_nichos_instagram():
         conexao.close()
 
     return jsonify([linha["nicho"] for linha in linhas])
+
+
+# ---------------------------------------------------------------------------
+# Sessão do Instagram (login pela interface, sem linha de comando)
+# ---------------------------------------------------------------------------
+
+def _pasta_sessao_instagram():
+    return paths.DIR_DADOS / "instagram" / "sessao"
+
+
+def _sessao_instagram_atual():
+    """Retorna (arquivo, usuario) da sessão salva, ou (None, None)."""
+    arquivos = sorted(_pasta_sessao_instagram().glob("session-*.json"))
+    if not arquivos:
+        return None, None
+    arquivo = arquivos[0]
+    usuario = arquivo.stem.removeprefix("session-")
+    return arquivo, usuario
+
+
+@bp.route("/api/instagram/sessao")
+def obter_sessao_instagram():
+    _, usuario = _sessao_instagram_atual()
+    return jsonify({"logada": bool(usuario), "usuario": usuario})
+
+
+@bp.route("/api/instagram/sessao", methods=["DELETE"])
+def encerrar_sessao_instagram():
+    for arquivo in _pasta_sessao_instagram().glob("session-*.json"):
+        arquivo.unlink()
+    return jsonify({"ok": True})
+
+
+@bp.route("/api/instagram/login", methods=["POST"])
+def login_instagram():
+    """Login pela interface. Se o Instagram exigir 2FA, responde precisa_2fa=True
+    e o front reenvia a mesma requisição com codigo_2fa preenchido.
+
+    A senha vive só nesta requisição - nunca é gravada, logada nem devolvida;
+    o que fica em disco é o arquivo de sessão do instagrapi (mesmo formato do
+    antigo login.py de linha de comando)."""
+    dados = request.json or {}
+    usuario = str(dados.get("usuario", "")).strip().lstrip("@")
+    senha = str(dados.get("senha", ""))
+    codigo_2fa = str(dados.get("codigo_2fa", "")).strip()
+
+    if not usuario or not senha:
+        return jsonify({"erro": "informe usuário e senha do Instagram"}), 400
+
+    from instagrapi import Client
+    from instagrapi.exceptions import TwoFactorRequired
+
+    cliente = Client()
+    try:
+        if codigo_2fa:
+            cliente.login(usuario, senha, verification_code=codigo_2fa)
+        else:
+            cliente.login(usuario, senha)
+    except TwoFactorRequired:
+        return jsonify({"precisa_2fa": True})
+    except Exception as erro:
+        # não logamos a senha em nenhuma hipótese; o tipo do erro basta pro diagnóstico
+        logger.warning("login do instagram falhou para @%s (%s)", usuario, type(erro).__name__)
+        return jsonify({"erro": f"O Instagram recusou o login: {erro}"}), 400
+
+    pasta = _pasta_sessao_instagram()
+    pasta.mkdir(parents=True, exist_ok=True)
+    # sessão única: um login novo substitui qualquer sessão anterior
+    for antigo in pasta.glob("session-*.json"):
+        antigo.unlink()
+    cliente.dump_settings(pasta / f"session-{usuario}.json")
+    logger.info("sessão do instagram criada para @%s", usuario)
+    return jsonify({"ok": True, "usuario": usuario})

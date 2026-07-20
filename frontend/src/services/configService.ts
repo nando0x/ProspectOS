@@ -26,6 +26,26 @@ export const configService = {
 
   salvarPerfilVendedor: (perfil: PerfilVendedor) =>
     httpClient.post<{ ok: true }>("/api/configuracoes/perfil-vendedor", perfil),
+
+  obterFonteMaps: () =>
+    httpClient.get<FonteMaps>("/api/configuracoes/fonte-maps"),
+
+  salvarFonteMaps: (fonte: FonteMapsTipo, chave?: string) =>
+    httpClient.post<{
+      ok: true
+      fonte: FonteMapsTipo
+      chave_configurada: boolean
+      mascarada: string | null
+    }>("/api/configuracoes/fonte-maps", { fonte, chave: chave || undefined }),
+}
+
+export type FonteMapsTipo = "scraper" | "places"
+
+export interface FonteMaps {
+  fonte: FonteMapsTipo
+  chave_configurada: boolean
+  mascarada: string | null
+  link_obter_chave: string
 }
 
 export interface PerfilVendedor {

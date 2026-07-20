@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { configService, type PerfilVendedor } from "@/services/configService"
+import {
+  configService,
+  type FonteMapsTipo,
+  type PerfilVendedor,
+} from "@/services/configService"
 import type { ProvedorIA } from "@/types/config"
 
 export function useConfiguracoes() {
@@ -57,6 +61,33 @@ export function useSalvarProxiesScraper() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["scraper-proxies"] })
       toast.success("Configuração de proxy salva.")
+    },
+  })
+}
+
+export function useFonteMaps() {
+  return useQuery({
+    queryKey: ["fonte-maps"],
+    queryFn: configService.obterFonteMaps,
+  })
+}
+
+export function useSalvarFonteMaps() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ fonte, chave }: { fonte: FonteMapsTipo; chave?: string }) =>
+      configService.salvarFonteMaps(fonte, chave),
+    onSuccess: (dados) => {
+      queryClient.invalidateQueries({ queryKey: ["fonte-maps"] })
+      toast.success(
+        dados.fonte === "places"
+          ? "Fonte salva: Google Places API (chave validada)."
+          : "Fonte salva: scraper local."
+      )
+    },
+    onError: (erro: Error) => {
+      toast.error(erro.message)
     },
   })
 }

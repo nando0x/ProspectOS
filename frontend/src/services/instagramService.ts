@@ -148,7 +148,24 @@ export const instagramService = {
     httpClient.post<{ ok: true }>(`/api/instagram/leads/${leadId}/sugestao-dm`, {
       sugestao_dm: sugestaoDm,
     }),
+
+  obterSessao: () =>
+    httpClient.get<SessaoInstagram>("/api/instagram/sessao"),
+
+  login: (dados: { usuario: string; senha: string; codigo_2fa?: string }) =>
+    httpClient.post<RespostaLoginInstagram>("/api/instagram/login", dados),
+
+  sairSessao: () => httpClient.delete<{ ok: true }>("/api/instagram/sessao"),
 }
+
+export interface SessaoInstagram {
+  logada: boolean
+  usuario: string | null
+}
+
+export type RespostaLoginInstagram =
+  | { ok: true; usuario: string }
+  | { precisa_2fa: true }
 
 export function urlExportarCsvInstagram(postId: number) {
   return `/api/instagram/posts/${postId}/exportar`

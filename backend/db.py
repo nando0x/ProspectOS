@@ -29,6 +29,7 @@ CHAVES_CONFIG_VALIDAS = {
     "groq": "GROQ_API_KEY",
     "nvidia": "NVIDIA_API_KEY",
     "pagespeed": "PAGESPEED_API_KEY",
+    "places": "PLACES_API_KEY",
 }
 
 # Chaves que são segredo de verdade: ficam no cofre de credenciais do sistema

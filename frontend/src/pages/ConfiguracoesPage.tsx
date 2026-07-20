@@ -2,6 +2,8 @@ import { ArrowLeft } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Header } from "@/components/layout/Header"
 import { Skeleton } from "@/components/ui/skeleton"
+import { FonteMapsCard } from "@/components/configuracoes/FonteMapsCard"
+import { InstagramContaCard } from "@/components/configuracoes/InstagramContaCard"
 import { PerfilVendedorCard } from "@/components/configuracoes/PerfilVendedorCard"
 import { ProvedorApiCard } from "@/components/configuracoes/ProvedorApiCard"
 import { ScraperProxyCard } from "@/components/configuracoes/ScraperProxyCard"
@@ -75,6 +77,30 @@ export function ConfiguracoesPage() {
             </p>
           </div>
         )}
+
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">
+            Fonte de dados do Google Maps
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Escolha entre o coletor local e a integração oficial do Google
+            Places.
+          </p>
+        </div>
+
+        <FonteMapsCard />
+
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">
+            Conta do Instagram
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Conecte sua conta para analisar posts e enriquecer perfis. O login
+            substitui o antigo script de linha de comando.
+          </p>
+        </div>
+
+        <InstagramContaCard />
 
         <div>
           <h2 className="text-xl font-semibold tracking-tight">

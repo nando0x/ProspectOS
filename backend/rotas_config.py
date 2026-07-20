@@ -14,6 +14,7 @@ LINKS_OBTER_CHAVE = {
     "groq": "https://console.groq.com/keys",
     "nvidia": "https://build.nvidia.com",
     "pagespeed": "https://developers.google.com/speed/docs/insights/v5/get-started",
+    "places": "https://console.cloud.google.com/apis/credentials",
 }
 
 
@@ -51,6 +52,56 @@ def atualizar_configuracao():
 
     db.salvar_config(chave, valor)
     return jsonify({"ok": True, "mascarada": mascarar_chave(valor)})
+
+
+# ---------------------------------------------------------------------------
+# Fonte de dados do Google Maps (scraper local vs Places API oficial)
+# ---------------------------------------------------------------------------
+
+FONTES_MAPS_VALIDAS = {"scraper", "places"}
+
+
+@bp.route("/api/configuracoes/fonte-maps")
+def obter_fonte_maps():
+    chave = db.obter_config("places")
+    return jsonify({
+        "fonte": db.obter_config("fonte_maps") or "scraper",
+        "chave_configurada": bool(chave),
+        "mascarada": mascarar_chave(chave),
+        "link_obter_chave": LINKS_OBTER_CHAVE["places"],
+    })
+
+
+@bp.route("/api/configuracoes/fonte-maps", methods=["POST"])
+def salvar_fonte_maps():
+    """Valida (com uma busca real mínima) e salva a fonte escolhida.
+    A mudança vale apenas para novas buscas."""
+    import fontes_maps
+
+    dados = request.json or {}
+    fonte = str(dados.get("fonte", "")).strip()
+    chave_nova = str(dados.get("chave", "")).strip()
+
+    if fonte not in FONTES_MAPS_VALIDAS:
+        return jsonify({"erro": f"fonte inválida. Use uma de: {', '.join(sorted(FONTES_MAPS_VALIDAS))}"}), 400
+
+    if fonte == "places":
+        chave = chave_nova or db.obter_config("places")
+        if not chave:
+            return jsonify({"erro": "informe a chave da Google Places API para usar essa fonte"}), 400
+        ok, erro = fontes_maps.validar_chave_places(chave)
+        if not ok:
+            return jsonify({"erro": erro}), 400
+        if chave_nova:
+            db.salvar_config("places", chave_nova)
+
+    db.salvar_config("fonte_maps", fonte)
+    return jsonify({
+        "ok": True,
+        "fonte": fonte,
+        "chave_configurada": bool(db.obter_config("places")),
+        "mascarada": mascarar_chave(db.obter_config("places")),
+    })
 
 
 CAMPOS_PERFIL_VENDEDOR = {

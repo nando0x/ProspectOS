@@ -357,8 +357,58 @@ CHAVES_CONTAGENS_SOMADAS = (
 )
 
 
+def _ler_queries_da_busca():
+    """Lê as queries gravadas pela rota de disparo (uma por linha)."""
+    try:
+        texto = (DIR_DADOS / "queries.txt").read_text(encoding="utf-8")
+    except OSError:
+        return []
+    return [linha.strip() for linha in texto.splitlines() if linha.strip()]
+
+
+def _capturar_dados_brutos(arquivo_bruto, ambiente, area=None):
+    """Gera o CSV bruto na fonte configurada: scraper local (padrão) ou Google
+    Places API. As duas escrevem o MESMO formato de CSV, então o resto do
+    pipeline não muda. Retorna None em sucesso ou a mensagem de erro amigável."""
+    fonte = db.obter_config("fonte_maps") or "scraper"
+
+    if fonte == "places":
+        import fontes_maps
+
+        chave = db.obter_config("places")
+        if not chave:
+            return (
+                "A fonte Google Places API está selecionada, mas nenhuma chave foi "
+                "configurada. Salve a chave em Configurações → Fonte de dados."
+            )
+        queries = _ler_queries_da_busca()
+        if not queries:
+            return "Nenhuma busca encontrada. Dispare a busca novamente."
+
+        def progresso(indice, total, texto):
+            estado_busca["mensagem"] = f"Consultando o Google Places... busca {indice} de {total}: {texto}"
+
+        try:
+            encontrados = fontes_maps.buscar_com_places_api(
+                queries, arquivo_bruto, chave, area=area, callback_query=progresso
+            )
+        except fontes_maps.ErroPlacesApi as erro:
+            return str(erro)
+        estado_busca["empresas_encontradas"] += encontrados
+        return None
+
+    flags_geo = ()
+    if area:
+        flags_geo = (
+            "-geo", f"{area['lat']},{area['lng']}",
+            "-radius", str(area["raio_m"]),
+            "-zoom", str(zoom_para_raio(area["raio_m"])),
+        )
+    return _executar_scraper(arquivo_bruto, ambiente, flags_geo)
+
+
 def _buscar_por_areas(areas, ambiente, data):
-    """Modo mapa: roda o scraper uma vez por área (pino + raio), processando cada
+    """Modo mapa: roda a fonte uma vez por área (pino + raio), processando cada
     resultado com a cidade/rótulo do pino. Uma área que falha não derruba as
     outras - vira um aviso no resultado final. Retorna as contagens somadas, ou
     None se TODAS as áreas falharem (mensagem de erro já definida no estado)."""
@@ -377,12 +427,7 @@ def _buscar_por_areas(areas, ambiente, data):
         )
 
         arquivo_bruto = DIR_DADOS / "saidas" / f"bruto_{data}_area{i}.csv"
-        flags_geo = [
-            "-geo", f"{area['lat']},{area['lng']}",
-            "-radius", str(area["raio_m"]),
-            "-zoom", str(zoom_para_raio(area["raio_m"])),
-        ]
-        erro = _executar_scraper(arquivo_bruto, ambiente, flags_geo)
+        erro = _capturar_dados_brutos(arquivo_bruto, ambiente, area=area)
         if erro:
             avisos.append(f'área "{rotulo}": {erro}')
             continue
@@ -448,7 +493,7 @@ def _rodar_busca_em_background(areas=None):
                 return  # todas as áreas falharam - mensagem já definida
         else:
             arquivo_bruto = pasta_saidas / f"bruto_{data}.csv"
-            erro = _executar_scraper(arquivo_bruto, ambiente)
+            erro = _capturar_dados_brutos(arquivo_bruto, ambiente)
             if erro:
                 estado_busca["mensagem"] = erro
                 return
