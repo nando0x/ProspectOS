@@ -16,6 +16,7 @@ import { useBusca } from "@/hooks/useBusca"
 import { useLeads } from "@/hooks/useLeads"
 import { useAtalhosTeclado } from "@/hooks/useAtalhosTeclado"
 import { urlExportarCsv } from "@/services/leadsService"
+import type { Lead } from "@/types/lead"
 
 export function LeadsMapsPage() {
   const { filtros, setFiltros, limpar, filtrosEmUso } = useFiltrosLeads()
@@ -24,8 +25,18 @@ export function LeadsMapsPage() {
     null
   )
   const { leads } = useLeads(filtros)
-  const leadSelecionado =
-    leads.find((l) => l.place_id === placeIdSelecionado) ?? null
+  // guarda o lead do modal em estado próprio: se ele sair da lista (ex.: mudei o
+  // status pra um que não passa no filtro atual), o modal continua aberto com o
+  // último dado conhecido em vez de fechar sozinho no meio da interação.
+  const [leadSelecionado, setLeadSelecionado] = useState<Lead | null>(null)
+  useEffect(() => {
+    if (placeIdSelecionado === null) {
+      setLeadSelecionado(null)
+      return
+    }
+    const atual = leads.find((l) => l.place_id === placeIdSelecionado)
+    if (atual) setLeadSelecionado(atual) // atualiza enquanto o lead está visível
+  }, [placeIdSelecionado, leads])
   const [modalBuscaAberto, setModalBuscaAberto] = useState(false)
   const [buscaMinimizada, setBuscaMinimizada] = useState(false)
   const busca = useBusca()

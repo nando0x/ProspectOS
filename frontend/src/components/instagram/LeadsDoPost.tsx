@@ -1,5 +1,5 @@
 import { AnimatePresence } from "framer-motion"
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Trash2, Users } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,7 @@ import { InstagramLeadCard } from "@/components/instagram/InstagramLeadCard"
 import { InstagramBulkActionsBar } from "@/components/instagram/InstagramBulkActionsBar"
 import { InstagramLeadDetailModal } from "@/components/instagram/InstagramLeadDetailModal"
 import type { StatusLead } from "@/types/lead"
+import type { LeadInstagram } from "@/types/instagram"
 import type { OrdenacaoPrioridade } from "@/lib/constants"
 import { ordenarPorPrioridade } from "@/lib/constants"
 
@@ -44,13 +45,28 @@ export function LeadsDoPost({
     nicho: filtroNicho,
     busca,
   })
-  const leads = ordenarPorPrioridade(leadsSemOrdenar, ordenacaoPrioridade)
-  const { selecionados, alternar, limpar, quantidade } =
-    useSelecaoLeadsInstagram()
+  const leads = useMemo(
+    () => ordenarPorPrioridade(leadsSemOrdenar, ordenacaoPrioridade),
+    [leadsSemOrdenar, ordenacaoPrioridade]
+  )
+  // seleção zera ao trocar de post ou de filtro (não age em leads invisíveis)
+  const { selecionados, alternar, limpar, quantidade } = useSelecaoLeadsInstagram(
+    `${postId}|${filtroStatus}|${filtroNicho}|${busca}`
+  )
   const [leadIdSelecionado, setLeadIdSelecionado] = useState<number | null>(
     null
   )
-  const leadDetalhe = leads.find((l) => l.id === leadIdSelecionado) ?? null
+  // snapshot do lead do modal: se ele sair da lista (mudei o status), o modal
+  // não fecha sozinho - mantém o último dado conhecido.
+  const [leadDetalhe, setLeadDetalhe] = useState<LeadInstagram | null>(null)
+  useEffect(() => {
+    if (leadIdSelecionado === null) {
+      setLeadDetalhe(null)
+      return
+    }
+    const atual = leads.find((l) => l.id === leadIdSelecionado)
+    if (atual) setLeadDetalhe(atual)
+  }, [leadIdSelecionado, leads])
   const { excluirEmLoteDefinitivamente } = useBulkMutationsInstagram(postId)
   const modoIgnorados = filtroStatus === "ignorado"
 

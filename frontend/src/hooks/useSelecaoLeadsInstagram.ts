@@ -1,7 +1,13 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
-export function useSelecaoLeadsInstagram() {
+/** `chaveContexto` identifica o conjunto de leads em tela (post + filtros).
+ * Quando muda, a seleção é limpa - evita ação em lote sobre leads invisíveis. */
+export function useSelecaoLeadsInstagram(chaveContexto?: string) {
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set())
+
+  useEffect(() => {
+    setSelecionados(new Set())
+  }, [chaveContexto])
 
   const alternar = (leadId: number) => {
     setSelecionados((atual) => {

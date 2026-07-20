@@ -1,7 +1,14 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
-export function useSelecaoLeads() {
+/** `chaveContexto` identifica o conjunto de leads em tela (ex.: filtros serializados).
+ * Quando muda, a seleção é limpa - evita que uma ação em lote rode sobre leads
+ * que não estão mais visíveis. */
+export function useSelecaoLeads(chaveContexto?: string) {
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    setSelecionados(new Set())
+  }, [chaveContexto])
 
   const alternar = (placeId: string) => {
     setSelecionados((atual) => {

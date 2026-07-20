@@ -47,7 +47,10 @@ export function LeadGrid({
 
   const { leads, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } =
     useLeads(filtrosEfetivos)
-  const { selecionados, alternar, limpar, quantidade } = useSelecaoLeads()
+  // ao trocar filtro/visualização, a seleção zera (não age em leads invisíveis)
+  const { selecionados, alternar, limpar, quantidade } = useSelecaoLeads(
+    JSON.stringify(filtrosEfetivos)
+  )
   const { excluirEmLoteDefinitivamente } = useBulkMutations()
   const modoIgnorados = filtros.status === "ignorado"
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Archive,
   ArrowLeft,
@@ -61,26 +61,30 @@ function CartaoDaSessao({
     onContatado()
   }
 
-  // Atalhos: Enter = WhatsApp + contatado · → = pular · Backspace = ignorar
+  // Atalhos: Enter = WhatsApp + contatado · → = pular · Backspace = ignorar.
+  // Uma ref sempre aponta para os handlers atuais, então o listener (registrado
+  // uma única vez) nunca opera sobre um lead/mensagem defasados por closure stale.
+  const handlersRef = useRef({ abrirWhatsappEContatar, onPular, onIgnorar })
+  handlersRef.current = { abrirWhatsappEContatar, onPular, onIgnorar }
+
   useEffect(() => {
     const aoTeclar = (evento: KeyboardEvent) => {
       const alvo = evento.target as HTMLElement
       if (alvo.tagName === "TEXTAREA" || alvo.tagName === "INPUT") return
       if (evento.key === "Enter") {
         evento.preventDefault()
-        abrirWhatsappEContatar()
+        handlersRef.current.abrirWhatsappEContatar()
       } else if (evento.key === "ArrowRight") {
         evento.preventDefault()
-        onPular()
+        handlersRef.current.onPular()
       } else if (evento.key === "Backspace") {
         evento.preventDefault()
-        onIgnorar()
+        handlersRef.current.onIgnorar()
       }
     }
     window.addEventListener("keydown", aoTeclar)
     return () => window.removeEventListener("keydown", aoTeclar)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.place_id, mensagem])
+  }, [])
 
   return (
     <div className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-sm">

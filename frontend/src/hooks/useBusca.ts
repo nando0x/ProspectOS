@@ -14,6 +14,10 @@ export function useBusca() {
 
   const aoDisparar = () => {
     setResultadoFinal(null)
+    // remove o status cacheado da busca ANTERIOR (rodando:false) - senão o
+    // effect abaixo veria !rodando e dispararia "conclusão" instantânea com o
+    // resultado antigo antes desta busca começar
+    queryClient.removeQueries({ queryKey: ["busca-status"] })
     setPoll(true)
     pedirPermissaoNotificacao()
   }

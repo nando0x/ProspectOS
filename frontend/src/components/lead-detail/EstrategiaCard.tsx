@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import { ChevronDown, Lightbulb, MessageSquareQuote, Target } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { montarEstrategia } from "@/lib/estrategia"
@@ -10,7 +11,9 @@ interface EstrategiaCardProps {
 /** Playbook de venda do lead: cenário, ângulo, ganchos e objeções - calculado
  * na hora a partir da situação do site, reputação e histórico de contato. */
 export function EstrategiaCard({ lead }: EstrategiaCardProps) {
-  const estrategia = montarEstrategia(lead)
+  // memoiza: sem isso, recalcula todo o playbook (regex + arrays) a cada render
+  // do modal, inclusive enquanto o usuário digita observações/tags
+  const estrategia = useMemo(() => montarEstrategia(lead), [lead])
 
   return (
     <div className="space-y-3 rounded-xl border border-primary/25 bg-primary/[0.04] p-4">

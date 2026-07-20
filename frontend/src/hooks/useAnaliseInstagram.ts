@@ -11,21 +11,23 @@ export function useAnaliseInstagram() {
     null
   )
 
+  const aoDisparar = () => {
+    setResultadoFinal(null)
+    // descarta o status cacheado da análise anterior (rodando:false) - senão o
+    // effect veria !rodando e concluiria na hora com o resultado antigo
+    queryClient.removeQueries({ queryKey: ["instagram-status"] })
+    setPoll(true)
+  }
+
   const dispararAnalise = useMutation({
     mutationFn: ({ postUrl, nichoAlvo }: { postUrl: string; nichoAlvo?: string }) =>
       instagramService.analisar(postUrl, nichoAlvo),
-    onSuccess: () => {
-      setResultadoFinal(null)
-      setPoll(true)
-    },
+    onSuccess: aoDisparar,
   })
 
   const retomarAnalise = useMutation({
     mutationFn: (postId: number) => instagramService.retomarAnalise(postId),
-    onSuccess: () => {
-      setResultadoFinal(null)
-      setPoll(true)
-    },
+    onSuccess: aoDisparar,
   })
 
   const statusAnalise = useQuery({
