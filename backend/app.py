@@ -154,8 +154,10 @@ if __name__ == "__main__":
         paths.caminho_dados("porta.txt", criar_pai=True).write_text(str(porta), encoding="utf-8")
         logger.info("servindo em http://127.0.0.1:%s", porta)
 
-        if paths.EMPACOTADO:
-            # empacotado não tem iniciar.bat: o próprio app abre a interface
+        # empacotado não tem iniciar.bat: o próprio app abre a interface - exceto
+        # quando quem subiu o backend foi o shell de desktop (Electron), que tem
+        # janela própria e seta PROSPECTOS_NO_BROWSER=1
+        if paths.EMPACOTADO and os.environ.get("PROSPECTOS_NO_BROWSER") != "1":
             threading.Timer(1.0, _abrir_navegador, args=(porta,)).start()
 
         # waitress: servidor WSGI de produção (o dev server do Flask não é pra isso)

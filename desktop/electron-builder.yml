@@ -1,0 +1,51 @@
+# Configuração do electron-builder (empacotamento + auto-update do ProspectOS)
+#
+# Build local (sem publicar):   npm run dist
+# Publicar release no GitHub:   npm run publicar   (precisa de GH_TOKEN no ambiente)
+#
+# O auto-update usa o GitHub Releases como feed: o build gera, além do
+# instalador, um latest.yml + blockmap que o electron-updater dos apps
+# instalados consulta pra saber se há versão nova. Zero infra própria.
+
+appId: com.nando0x.prospectos
+productName: ProspectOS
+icon: prospectos.ico
+
+directories:
+  output: saida
+
+files:
+  - main.js
+  - package.json
+  - prospectos.ico
+
+# o bundle do PyInstaller (backend + scraper + node + frontend) vai inteiro
+# como recurso - main.js o sobe como sidecar
+extraResources:
+  - from: ../backend/dist/ProspectOS
+    to: backend
+
+win:
+  target:
+    - nsis
+  # sem code signing por enquanto (SmartScreen mostra aviso azul; melhoria futura).
+  # signAndEditExecutable desligado porque o pacote winCodeSign do electron-builder
+  # exige privilégio de symlink no Windows; o ícone/metadata do exe é aplicado
+  # pelo hook afterPack (rcedit), que não precisa de privilégio nenhum
+  signAndEditExecutable: false
+
+afterPack: ./afterPack.js
+
+nsis:
+  # instalação por usuário, um clique, estilo VSCode - é o formato que o
+  # electron-updater sabe atualizar sozinho
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false # NUNCA apagar %APPDATA%\ProspectOS (os leads!)
+  artifactName: ProspectOS-Setup-${version}.${ext}
+  shortcutName: ProspectOS
+
+publish:
+  provider: github
+  owner: nando0x
+  repo: ProspectOS

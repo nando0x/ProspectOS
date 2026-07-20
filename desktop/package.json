@@ -1,0 +1,23 @@
+{
+  "name": "prospectos-desktop",
+  "productName": "ProspectOS",
+  "version": "3.0.0",
+  "description": "ProspectOS - prospecção de leads com IA, rodando na sua máquina",
+  "author": "nando0x",
+  "license": "MIT",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never",
+    "publicar": "electron-builder --win --publish always"
+  },
+  "devDependencies": {
+    "electron": "38.2.0",
+    "electron-builder": "26.0.12",
+    "rcedit": "^5.0.2"
+  },
+  "dependencies": {
+    "electron-updater": "6.6.2"
+  }
+}
