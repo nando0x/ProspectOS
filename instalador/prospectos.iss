@@ -15,7 +15,7 @@
 ;   criados pelo próprio app - o desinstalador NÃO os apaga de propósito.
 
 #define NomeApp "ProspectOS"
-#define VersaoApp "2.1.0"
+#define VersaoApp "3.1.0"
 #define Editor "nando0x"
 #define URLApp "https://github.com/nando0x/ProspectOS"
 #define ExeApp "ProspectOS.exe"
