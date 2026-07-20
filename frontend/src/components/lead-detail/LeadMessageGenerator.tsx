@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Copy, MessageCircleReply, Sparkles } from "lucide-react"
+import { Copy, MessageCircle, MessageCircleReply, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -8,6 +8,7 @@ import { TemplateSelector } from "@/components/shared/TemplateSelector"
 import { useClipboard } from "@/hooks/useClipboard"
 import { ajustarSaudacao } from "@/lib/saudacao"
 import { formatarTempoRelativo } from "@/lib/formatters"
+import { linkWhatsappComMensagem } from "@/services/tarefasService"
 import type { UseMutationResult } from "@tanstack/react-query"
 import type { GerarMensagemResposta, Lead } from "@/types/lead"
 
@@ -106,6 +107,21 @@ export function LeadMessageGenerator({
         >
           {numeroCopiado ? "Copiado!" : "Copiar número"}
         </Button>
+        {lead.whatsapp_link && (
+          <Button
+            size="sm"
+            className="bg-success text-white hover:bg-success/90"
+            onClick={() =>
+              window.open(
+                linkWhatsappComMensagem(lead.whatsapp_link!, mensagem || null),
+                "_blank"
+              )
+            }
+          >
+            <MessageCircle className="size-4" />
+            Abrir WhatsApp
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 p-2.5">
