@@ -11,3 +11,7 @@ release-*.md
 
 # saida compilada do instalador (85MB+, gerada por iscc)
 instalador/saida/
+
+# artefatos do PyInstaller (build local)
+backend/dist/
+backend/build/
