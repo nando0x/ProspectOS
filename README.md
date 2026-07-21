@@ -19,7 +19,7 @@ num CRM visual — do primeiro contato ao fechamento.
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
-![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Windows%20desktop%20%7C%20macOS%2FLinux%20local-0078D6)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 [![GitHub stars](https://img.shields.io/github/stars/nando0x/ProspectOS?style=social)](https://github.com/nando0x/ProspectOS)
@@ -76,7 +76,7 @@ Leia isto com atenção antes de rodar qualquer coisa:
 - 🔧 **Sem garantia de funcionamento contínuo.** Instagram e Google mudam suas proteções com frequência. Se algo parar de funcionar, é provavelmente por isso.
 - 🚫 **Sem afiliação** com Google, Meta/Instagram, nem com os projetos de terceiros usados (`gosom/google-maps-scraper`, `instagrapi`).
 - 📄 Fornecido **"como está"**, sem garantias. Veja [`LICENSE`](LICENSE) (MIT).
-- 🪟 **Windows apenas.** Os scripts de conveniência (`.bat`) e o binário do scraper de Maps são específicos para Windows.
+- 🪟 **Desktop empacotado ainda é Windows.** Em macOS/Linux, rode em modo local no navegador (`iniciar.sh`) e compile o scraper do Maps para a sua plataforma, ou use a fonte Google Places API.
 
 ---
 
@@ -97,7 +97,7 @@ Leia isto com atenção antes de rodar qualquer coisa:
 | 📊 **CRM visual + Kanban** | Funil de status com histórico, drag-and-drop, tags, observações e follow-up com cadência crescente (+3/+5/+7 dias) |
 | 📈 **Analytics** | Funil de conversão e desempenho por nicho, para os dois canais separados e combinados |
 | 🧰 **Produtividade** | Filtros (inclusive por situação do site), histórico de buscas, busca global (Ctrl+K), exportação CSV, ações em lote, tema claro/escuro |
-| 🔐 **Segurança** | Chaves de API guardadas no cofre de credenciais do sistema (Windows/DPAPI), nunca em texto puro |
+| 🔐 **Segurança** | Chaves de API guardadas no cofre de credenciais do sistema quando disponível, nunca em texto puro por padrão |
 
 ---
 
@@ -107,7 +107,8 @@ Leia isto com atenção antes de rodar qualquer coisa:
 
 - [Python 3.11+](https://www.python.org/downloads/)
 - [Node.js 20+](https://nodejs.org/)
-- Windows (scripts `.bat` e o scraper de Maps são específicos da plataforma)
+- Windows para o instalador desktop atual; macOS/Linux são suportados em modo desenvolvimento/local no navegador.
+- [Go](https://go.dev/) opcional, apenas se você for compilar o scraper do Maps no macOS/Linux.
 
 ### 1. Clone o repositório
 
@@ -119,9 +120,17 @@ cd ProspectOS
 ### 2. Configure o backend
 
 ```powershell
+# Windows
 cd backend
 py -m pip install -r requirements.txt
 copy .env.example .env
+```
+
+```bash
+# macOS/Linux
+cd backend
+python3.11 -m pip install -r requirements.txt
+cp .env.example .env
 ```
 
 Você vai precisar de **ao menos uma** chave de IA gratuita (usada para gerar as mensagens de abordagem e classificar leads do Instagram):
@@ -143,31 +152,63 @@ Tem duas formas de configurar, escolha a que for mais fácil pra você:
 
 > 💡 **Recomendado — Seu perfil:** ainda em Configurações, preencha "Seu perfil" (nome e o que você faz). As mensagens geradas por IA saem assinadas e na sua voz, em vez de genéricas.
 
-### 3. Baixe a dependência externa do scraper
+### 3. Baixe ou compile a dependência externa do scraper
 
-O `google-maps-scraper.exe` **não vem no repositório** (é um binário de terceiros, ~60MB, de outro projeto open source, então não faz sentido versionar binário compilado dentro de um repo git). Passo a passo completo, sem pular nada:
+O binário do `gosom/google-maps-scraper` **não vem no repositório** (é um binário de terceiros, ~60MB, então não faz sentido versionar dentro de um repo git).
+
+**Windows:**
 
 1. Acesse **[a página de releases mais recente](https://github.com/gosom/google-maps-scraper/releases/latest)**.
-2. Role até a seção **"Assets"** (fica perto do final da página, às vezes precisa clicar para expandir).
-3. Procure o arquivo para **Windows**. O nome muda a cada versão nova, mas segue sempre o padrão `google_maps_scraper-<versão>-windows-amd64.exe`, por exemplo: `google_maps_scraper-1.16.1-windows-amd64.exe`.
+2. Role até a seção **"Assets"**.
+3. Baixe o arquivo `google_maps_scraper-<versão>-windows-amd64.exe`.
+4. Renomeie para exatamente `google-maps-scraper.exe`.
+5. Mova esse arquivo para dentro da pasta `backend/`, ao lado de `app.py`.
 
-   > ⚠️ Não baixe as versões `linux` ou `darwin` (essas são para Linux/Mac). Você quer especificamente a que tem `windows` no nome.
-4. Depois de baixado, **renomeie o arquivo para exatamente `google-maps-scraper.exe`** (tudo minúsculo, com hífens).
-   - No Windows, se você não estiver vendo a extensão `.exe` no nome do arquivo, isso é normal (o Windows esconde extensões conhecidas por padrão). Não precisa se preocupar, só renomeie a parte visível do nome.
-5. Mova esse arquivo para dentro da pasta `backend/` deste projeto, **no mesmo nível** do arquivo `app.py` (não dentro de nenhuma subpasta).
-6. Para conferir se deu certo, a pasta `backend/` deve conter, lado a lado: `app.py`, `processar.py` e `google-maps-scraper.exe`.
+**macOS/Linux:**
 
-> ✅ **Como saber se funcionou:** ao clicar em "Nova busca" no canal Google Maps do ProspectOS, a busca deve iniciar normalmente. Se aparecer um erro dizendo que o programa não foi encontrado, revise o nome do arquivo (passo 4) e o local onde ele está (passo 5). São os dois erros mais comuns.
+Compile localmente a partir do repositório do scraper:
+
+```bash
+git clone https://github.com/gosom/google-maps-scraper.git
+cd google-maps-scraper
+go build -o google-maps-scraper
+cp google-maps-scraper /caminho/para/ProspectOS/backend/google-maps-scraper
+chmod +x /caminho/para/ProspectOS/backend/google-maps-scraper
+```
+
+Se no macOS o scraper falhar ao baixar o driver do Playwright Go com erro `404 Not Found`, crie um driver local com o pacote npm do Playwright. O backend detecta automaticamente `backend/.playwright-driver/package/cli.js`:
+
+```bash
+cd /caminho/para/ProspectOS/backend
+rm -rf .playwright-driver
+mkdir -p .playwright-driver/npm
+cd .playwright-driver/npm
+npm init -y
+npm install playwright@1.52.0 --ignore-scripts
+cd ..
+ln -s npm/node_modules/playwright package
+```
+
+Para conferir se deu certo, a pasta `backend/` deve conter, lado a lado: `app.py`, `processar.py` e o binário da sua plataforma (`google-maps-scraper.exe` no Windows ou `google-maps-scraper` no macOS/Linux). No workaround do Playwright, `backend/.playwright-driver/package/cli.js` também deve existir.
+
+> ✅ **Como saber se funcionou:** ao clicar em "Nova busca" no canal Google Maps do ProspectOS, a busca deve iniciar normalmente. Se aparecer um erro dizendo que o programa não foi encontrado, revise o nome do arquivo e o local onde ele está.
 >
-> Sem esse arquivo, **só o canal Google Maps fica indisponível**. O canal Instagram funciona normalmente sem ele.
+> Sem esse arquivo, **só o canal Google Maps fica indisponível**. O canal Instagram funciona normalmente sem ele. Você também pode usar a fonte **Google Places API** em Configurações para não depender do scraper local.
 
 ### 4. Faça login no Instagram (só se for usar esse canal)
 
 O canal Instagram não usa a API oficial: ele automatiza sua **própria conta pessoal** (via `instagrapi`) para ler comentários e perfis, exatamente como se você estivesse navegando manualmente. Por isso, antes de usar esse canal pela primeira vez, é preciso logar uma única vez pelo terminal:
 
 ```powershell
+# Windows
 cd backend
 py instagram\login.py SEU_USUARIO
+```
+
+```bash
+# macOS/Linux
+cd backend
+python3.11 instagram/login.py SEU_USUARIO
 ```
 
 O que acontece ao rodar isso:
@@ -192,8 +233,15 @@ npm install
 Use o atalho que sobe backend + frontend juntos e abre o navegador automaticamente:
 
 ```powershell
+# Windows
 cd ..
 iniciar.bat
+```
+
+```bash
+# macOS/Linux
+cd ..
+./iniciar.sh
 ```
 
 Ou manualmente, em dois terminais:
@@ -201,7 +249,8 @@ Ou manualmente, em dois terminais:
 ```powershell
 # Terminal 1: backend
 cd backend
-py app.py
+py app.py              # Windows
+# ou: python3.11 app.py # macOS/Linux
 
 # Terminal 2: frontend
 cd frontend
@@ -266,7 +315,8 @@ py processar.py
 
 ```
 ProspectOS/
-├── iniciar.bat              # sobe backend + frontend juntos
+├── iniciar.bat              # sobe backend + frontend juntos no Windows
+├── iniciar.sh               # sobe backend + frontend juntos no macOS/Linux
 ├── backend/
 │   ├── app.py                # monta o Flask e registra os blueprints
 │   ├── rotas_*.py            # rotas por domínio (leads, instagram, analytics, config)
@@ -310,11 +360,16 @@ cd backend
 py -m pytest
 ```
 
-**O canal Instagram não depende do `google-maps-scraper.exe`?**
+```bash
+cd backend
+python3.11 -m pytest
+```
+
+**O canal Instagram não depende do scraper do Google Maps?**
 Não. Os dois canais são independentes. Falta de um não trava o outro.
 
 **Minha conta do Instagram foi bloqueada, e agora?**
-Rode `py instagram\login.py SEU_USUARIO` de novo. Veja `backend/instagram/LEIA-ME.md` para mais contexto sobre esse risco.
+Rode `py instagram\login.py SEU_USUARIO` no Windows ou `python3.11 instagram/login.py SEU_USUARIO` no macOS/Linux. Veja `backend/instagram/LEIA-ME.md` para mais contexto sobre esse risco.
 
 ---
 

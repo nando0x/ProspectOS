@@ -1,5 +1,5 @@
 """
-Processa o CSV bruto gerado pelo google-maps-scraper.exe:
+Processa o CSV bruto gerado pelo google-maps-scraper:
 - filtra empresas com nota >= NOTA_MINIMA e sem site cadastrado
 - gera o link do WhatsApp a partir do telefone
 - salva tudo num banco local (leads.db) pra nunca repetir o mesmo lead em buscas futuras

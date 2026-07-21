@@ -76,7 +76,7 @@ class TestTraduzirErroScraper:
 
     def test_arquivo_nao_encontrado(self):
         msg = jobs.traduzir_erro_scraper("no such file or directory", 127)
-        assert "google-maps-scraper.exe" in msg
+        assert "google-maps-scraper" in msg
 
     def test_timeout_deadline(self):
         msg = jobs.traduzir_erro_scraper("context deadline exceeded", 1)
@@ -122,6 +122,48 @@ class TestZoomParaRaio:
     def test_nunca_passa_do_piso(self):
         # raio gigante não pode ir abaixo do zoom mínimo (8)
         assert jobs.zoom_para_raio(10_000_000) >= 8
+
+
+# ---------------------------------------------------------------------------
+# Plataforma — nomes do scraper e Node resolvidos sem assumir Windows
+# ---------------------------------------------------------------------------
+
+class TestPlataformaScraper:
+    def test_nome_do_scraper_no_windows(self, monkeypatch):
+        monkeypatch.setattr(jobs.sys, "platform", "win32")
+        assert jobs.nome_executavel_scraper() == "google-maps-scraper.exe"
+
+    def test_nome_do_scraper_no_macos(self, monkeypatch):
+        monkeypatch.setattr(jobs.sys, "platform", "darwin")
+        assert jobs.nome_executavel_scraper() == "google-maps-scraper"
+
+    def test_node_no_macos_vem_do_path_quando_nao_ha_config(self, monkeypatch):
+        monkeypatch.setattr(jobs.sys, "platform", "darwin")
+        monkeypatch.setattr(jobs.db, "obter_config", lambda _chave: None)
+        monkeypatch.setattr(jobs, "caminho_recurso", lambda *partes: Path("/app").joinpath(*partes))
+        monkeypatch.setattr(jobs.shutil, "which", lambda nome: "/opt/homebrew/bin/node" if nome == "node" else None)
+        assert jobs.caminho_node_padrao({}) == "/opt/homebrew/bin/node"
+
+    def test_node_no_windows_mantem_fallback_classico(self, monkeypatch):
+        monkeypatch.setattr(jobs.sys, "platform", "win32")
+        monkeypatch.setattr(jobs.db, "obter_config", lambda _chave: None)
+        monkeypatch.setattr(jobs, "caminho_recurso", lambda *partes: Path("C:/app").joinpath(*partes))
+        monkeypatch.setattr(jobs.shutil, "which", lambda _nome: None)
+        assert jobs.caminho_node_padrao({}) == r"C:\Program Files\nodejs\node.exe"
+
+    def test_driver_playwright_respeita_variavel_de_ambiente(self):
+        assert jobs.caminho_driver_playwright_padrao({"PLAYWRIGHT_DRIVER_PATH": "/tmp/pw"}) == "/tmp/pw"
+
+    def test_driver_playwright_usa_pasta_local_quando_existe(self, tmp_path, monkeypatch):
+        driver = tmp_path / ".playwright-driver"
+        (driver / "package").mkdir(parents=True)
+        (driver / "package" / "cli.js").write_text("", encoding="utf-8")
+        monkeypatch.setattr(jobs, "caminho_recurso", lambda *partes: tmp_path.joinpath(*partes))
+        assert jobs.caminho_driver_playwright_padrao({}) == str(driver)
+
+    def test_driver_playwright_none_quando_nao_configurado(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(jobs, "caminho_recurso", lambda *partes: tmp_path.joinpath(*partes))
+        assert jobs.caminho_driver_playwright_padrao({}) is None
 
 
 # ---------------------------------------------------------------------------
