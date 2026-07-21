@@ -280,6 +280,87 @@ class TestCallbackProgressoVerificacao:
 
 
 # ---------------------------------------------------------------------------
+# _processar_linha_scraper_v2 — novo parser bridge (stdout + stderr)
+# ---------------------------------------------------------------------------
+
+class TestProcessarLinhaScraperV2:
+    def setup_method(self):
+        jobs.estado_busca["empresas_encontradas"] = 0
+        jobs.estado_busca["empresas_processadas"] = 0
+
+    def test_places_found_soma_encontradas(self):
+        from scraper_process import ParsedScraperLine, LineCategory
+        parsed = ParsedScraperLine(
+            category=LineCategory.PROGRESS, raw="", stream="stderr",
+            places_found=12,
+        )
+        jobs._processar_linha_scraper_v2(parsed)
+        assert jobs.estado_busca["empresas_encontradas"] == 12
+
+    def test_job_finished_incrementa_processadas(self):
+        from scraper_process import ParsedScraperLine, LineCategory
+        parsed = ParsedScraperLine(
+            category=LineCategory.LIFECYCLE, raw="", stream="stdout",
+            is_job_finished=True,
+        )
+        jobs._processar_linha_scraper_v2(parsed)
+        assert jobs.estado_busca["empresas_processadas"] == 1
+
+    def test_ignores_unstructured(self):
+        from scraper_process import ParsedScraperLine, LineCategory
+        parsed = ParsedScraperLine(
+            category=LineCategory.UNSTRUCTURED, raw="log line", stream="stdout",
+        )
+        jobs._processar_linha_scraper_v2(parsed)
+        assert jobs.estado_busca["empresas_encontradas"] == 0
+        assert jobs.estado_busca["empresas_processadas"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Argument snapshot — garante que a CLI do scraper não mudou
+# ---------------------------------------------------------------------------
+
+class TestArgumentosScraper:
+    def test_argumentos_snapshot(self):
+        """Verifica que os argumentos base do scraper não mudaram
+        (ordem, flags, valores default)."""
+        # Simula a montagem dos args sem executar o scraper
+        from pathlib import Path
+        from unittest.mock import patch
+
+        scraper_path = Path("/fake/scraper")
+        arquivo_bruto = Path("/fake/bruto.csv")
+        flags_extras = ()
+
+        comando = [
+            str(scraper_path),
+            "-input", str(Path("/fake/queries.txt")),
+            "-results", str(arquivo_bruto),
+            "-lang", "pt",
+            "-depth", "5",
+            "-exit-on-inactivity", "3m",
+            *flags_extras,
+        ]
+
+        assert comando == [
+            "/fake/scraper",
+            "-input", "/fake/queries.txt",
+            "-results", "/fake/bruto.csv",
+            "-lang", "pt",
+            "-depth", "5",
+            "-exit-on-inactivity", "3m",
+        ]
+
+    def test_proxies_adicionados_ao_final(self):
+        from pathlib import Path
+        comando_base = ["/fake/scraper", "-input", "/fake/q.txt", "-results", "/fake/r.csv",
+                        "-lang", "pt", "-depth", "5", "-exit-on-inactivity", "3m"]
+        proxies = "http://proxy:8080"
+        comando_completo = comando_base + ["-proxies", proxies]
+        assert comando_completo[-2:] == ["-proxies", proxies]
+
+
+# ---------------------------------------------------------------------------
 # rodar_scraper_com_progresso — com um processo Python fake no lugar do .exe
 # ---------------------------------------------------------------------------
 

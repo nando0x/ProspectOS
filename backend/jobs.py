@@ -22,6 +22,14 @@ import ia
 import processar
 import runtime_targets
 from paths import DIR_DADOS, DIR_RECURSOS
+from scraper_process import (
+    ScraperProcessRunner,
+    ParsedScraperLine,
+)
+from scraper_runtime import (
+    resolve_and_prepare_runtime,
+    ScraperRuntimeError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -294,6 +302,16 @@ def _processar_linha_de_progresso_scraper(linha_texto):
             estado_busca["empresas_encontradas"] += int(partes[0])
 
 
+def _processar_linha_scraper_v2(parsed: ParsedScraperLine):
+    if parsed.places_found:
+        estado_busca["empresas_encontradas"] += parsed.places_found
+    if parsed.is_job_finished:
+        estado_busca["empresas_processadas"] += 1
+        estado_busca["mensagem"] = (
+            f"Buscando no Google Maps... {estado_busca['empresas_processadas']} empresa(s) processada(s)"
+        )
+
+
 def _callback_progresso_verificacao(indice, total, nome_empresa):
     estado_busca["etapa"] = "verificando_sites"
     estado_busca["mensagem"] = f"Verificando site da empresa {indice} de {total}: {nome_empresa}"
@@ -309,15 +327,21 @@ def zoom_para_raio(raio_m):
     return max(8, min(17, round(15 - math.log2(max(raio_m, 500) / 1000))))
 
 
-def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
+def _executar_scraper(arquivo_bruto, ambiente, flags_extras=(), scraper_path_override=None):
     """Roda o binário do scraper uma vez, com progresso ao vivo.
     Retorna None em sucesso, ou a mensagem de erro amigável em falha."""
-    try:
-        scraper_path = runtime_targets.resolve_scraper()
-        runtime_targets.validate_executable(scraper_path, "Scraper do Google Maps")
-    except Exception as exc:
-        logger.exception("scraper não disponível")
-        return str(exc)
+    target = runtime_targets.current_target()
+    use_new_runner = target == "darwin-arm64"
+
+    if scraper_path_override:
+        scraper_path = scraper_path_override
+    else:
+        try:
+            scraper_path = runtime_targets.resolve_scraper()
+            runtime_targets.validate_executable(scraper_path, "Scraper do Google Maps")
+        except Exception as exc:
+            logger.exception("scraper não disponível")
+            return str(exc)
 
     comando_scraper = [
         str(scraper_path),
@@ -332,10 +356,12 @@ def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
     if proxies:
         comando_scraper += ["-proxies", proxies]
 
+    if use_new_runner:
+        return _executar_scraper_com_runner(
+            scraper_path, comando_scraper[1:], ambiente,
+        )
+
     try:
-        # cwd precisa ser GRAVÁVEL: o scraper cria arquivos de trabalho (cache do
-        # Playwright etc.) - empacotado, a pasta do app é read-only, então usamos
-        # a área de dados
         returncode, stderr_completo = rodar_scraper_com_progresso(
             comando=comando_scraper,
             cwd=str(DIR_DADOS),
@@ -359,13 +385,62 @@ def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
     return None
 
 
+def _executar_scraper_com_runner(scraper_path, args, ambiente):
+    """Executa o scraper usando o ScraperProcessRunner (fluxo gerenciado)."""
+    runner = ScraperProcessRunner()
+    result = runner.run(
+        executable=scraper_path,
+        args=args,
+        cwd=DIR_DADOS,
+        env=ambiente,
+        progress_callback=_processar_linha_scraper_v2,
+        timeout=TIMEOUT_SCRAPER_SEGUNDOS,
+    )
+
+    logger.info(
+        "scraper concluido: rc=%s duracao=%.1fs terminated=%s killed=%s "
+        "places=%s jobs_finished=%s erros=%s",
+        result.return_code, result.duration_seconds,
+        result.terminated, result.killed,
+        result.progress.places_found, result.progress.jobs_finished,
+        len(result.errors),
+    )
+
+    if result.killed:
+        return (
+            "A busca demorou demais e foi cancelada. Tente com menos nichos por vez, "
+            "ou confira sua conexão com a internet."
+        )
+    if result.terminated:
+        return "A busca foi interrompida."
+
+    if result.return_code == 2:
+        logger.error(
+            "scraper CLI invalido (rc=2). tail stderr: %s",
+            "".join(result.tail_stderr[-20:]),
+        )
+        return "Erro de configuração no programa de busca."
+
+    if result.return_code != 0:
+        stderr_text = "".join(result.tail_stderr)
+        logger.error(
+            "scraper falhou (rc=%s). erros: %s tail_stderr: %s",
+            result.return_code, result.errors, stderr_text[-2000:],
+        )
+        if result.errors:
+            return result.errors[0]
+        return traduzir_erro_scraper(stderr_text, result.return_code)
+
+    return None
+
+
 CHAVES_CONTAGENS_SOMADAS = (
     "total_no_csv", "novos", "novos_sem_site", "novos_site_ruim",
     "descartados_por_site_ok", "erros_de_linha",
 )
 
 
-def _buscar_por_areas(areas, ambiente, data):
+def _buscar_por_areas(areas, ambiente, data, scraper_path_override=None):
     """Modo mapa: roda o scraper uma vez por área (pino + raio), processando cada
     resultado com a cidade/rótulo do pino. Uma área que falha não derruba as
     outras - vira um aviso no resultado final. Retorna as contagens somadas, ou
@@ -390,7 +465,7 @@ def _buscar_por_areas(areas, ambiente, data):
             "-radius", str(area["raio_m"]),
             "-zoom", str(zoom_para_raio(area["raio_m"])),
         ]
-        erro = _executar_scraper(arquivo_bruto, ambiente, flags_geo)
+        erro = _executar_scraper(arquivo_bruto, ambiente, flags_geo, scraper_path_override)
         if erro:
             avisos.append(f'área "{rotulo}": {erro}')
             continue
@@ -426,9 +501,8 @@ def _rodar_busca_em_background(areas=None):
     estado_busca["area_atual"] = 0
     estado_busca["total_areas"] = len(areas) if areas else 0
     logger.info(
-        "runtime target: %s | scraper executable: %s",
+        "runtime target: %s",
         runtime_targets.current_target(),
-        runtime_targets.resolve_scraper(),
     )
     logger.info("busca iniciada (modo %s)", "mapa" if areas else "texto")
     _job_id_busca = _registrar_inicio_job("busca_maps")
@@ -442,15 +516,30 @@ def _rodar_busca_em_background(areas=None):
         pasta_saidas = DIR_DADOS / "saidas"
         pasta_saidas.mkdir(parents=True, exist_ok=True)
 
-        ambiente = os.environ.copy()
+        scraper_path_resolvido = None
+        runtime_env = {}
+        try:
+            resolved = resolve_and_prepare_runtime()
+            scraper_path_resolvido, runtime_env = resolved
+        except ScraperRuntimeError as exc:
+            estado_busca["mensagem"] = str(exc)
+            return
+
+        ambiente = {
+            **os.environ.copy(),
+            **runtime_env,
+        }
 
         if areas:
-            contagens = _buscar_por_areas(areas, ambiente, data)
+            contagens = _buscar_por_areas(areas, ambiente, data, scraper_path_resolvido)
             if contagens is None:
-                return  # todas as áreas falharam - mensagem já definida
+                return
         else:
             arquivo_bruto = pasta_saidas / f"bruto_{data}.csv"
-            erro = _executar_scraper(arquivo_bruto, ambiente)
+            erro = _executar_scraper(
+                arquivo_bruto, ambiente,
+                scraper_path_override=scraper_path_resolvido,
+            )
             if erro:
                 estado_busca["mensagem"] = erro
                 return
