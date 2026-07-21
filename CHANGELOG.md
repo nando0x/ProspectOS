@@ -4,6 +4,19 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e o projeto adota versionamento semântico.
 
+## [Não lançado]
+
+### Adicionado
+- Suporte a **Linux e macOS**: `iniciar.sh` (equivalente do `iniciar.bat`) e
+  `backend/preparar_driver_playwright.sh`, que monta o driver do Playwright a partir
+  do npm — o CDN antigo usado pelo scraper de Maps saiu do ar e o navegador interno
+  não subia.
+
+### Corrigido
+- Scraper de Maps agora resolve o binário e o Node por plataforma (sem `.exe` nem
+  caminho fixo do Windows) e lê o progresso ao vivo também do `stderr`, usado pelas
+  builds de Linux — antes o contador ficava parado em zero.
+
 ## [2.0.0] - 2026-07-17
 
 Salto grande: o ProspectOS deixou de ser "achador de leads sem site" e virou uma

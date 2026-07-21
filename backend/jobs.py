@@ -29,6 +29,23 @@ sys.path.insert(0, str(PASTA_INSTAGRAM))
 
 TIMEOUT_SCRAPER_SEGUNDOS = 900  # 15 minutos - nunca deve travar pra sempre
 
+# nome do binário do scraper: no Windows é .exe, no Linux/macOS é sem extensão.
+# permite sobrescrever via variável de ambiente pra quem baixou um nome diferente.
+NOME_SCRAPER = os.environ.get(
+    "GOOGLE_MAPS_SCRAPER_BIN",
+    "google-maps-scraper.exe" if os.name == "nt" else "google-maps-scraper",
+)
+
+
+def _caminho_node_padrao():
+    """Node usado pelo Playwright embutido no scraper. No Linux/macOS acha o `node`
+    no PATH; no Windows cai no local padrão de instalação."""
+    import shutil
+
+    return shutil.which("node") or (
+        r"C:\Program Files\nodejs\node.exe" if os.name == "nt" else "/usr/bin/node"
+    )
+
 # guarda o estado da busca em andamento (pra não deixar disparar duas ao mesmo tempo
 # e pra interface conseguir perguntar "já terminou?"). "etapa" e os contadores dão
 # um progresso ao vivo em vez de só uma mensagem estática.
@@ -201,12 +218,18 @@ def traduzir_erro_scraper(stderr, returncode):
     texto = (stderr or "").lower()
 
     if "could not install driver" in texto or "playwright" in texto:
+        if os.name != "nt":
+            return (
+                "O scraper não conseguiu iniciar o navegador interno. No Linux/macOS isso "
+                "costuma ser o driver do Playwright faltando (o CDN antigo saiu do ar). "
+                "Rode ./preparar_driver_playwright.sh na pasta backend/ e tente de novo."
+            )
         return (
             "O scraper não conseguiu iniciar o navegador interno. Confira se o Node.js está "
             "instalado (veja o LEIA-ME.md) e tente novamente."
         )
     if "no such file" in texto or "not found" in texto:
-        return "O programa google-maps-scraper.exe não foi encontrado na pasta do projeto."
+        return f"O programa {NOME_SCRAPER} não foi encontrado na pasta do projeto."
     if "deadline exceeded" in texto or "timeout" in texto:
         return "A busca no Google Maps demorou demais e foi interrompida. Tente de novo."
 
@@ -215,11 +238,17 @@ def traduzir_erro_scraper(stderr, returncode):
     )
 
 
-def _ler_stderr_em_thread(pipe, buffer_lista):
+def _ler_stderr_em_thread(pipe, buffer_lista, callback_linha=None):
     """Lê stderr continuamente numa thread separada, pra não bloquear o pipe
-    (senão o processo trava se encher o buffer de stderr enquanto só lemos stdout)."""
+    (senão o processo trava se encher o buffer de stderr enquanto só lemos stdout).
+
+    Também alimenta o callback de progresso: algumas builds do scraper (as de
+    Linux, por exemplo) mandam os logs JSON de progresso pra stderr em vez de
+    stdout - sem isso o contador ao vivo ficaria parado em zero."""
     for linha in iter(pipe.readline, ""):
         buffer_lista.append(linha)
+        if callback_linha:
+            callback_linha(linha)
     pipe.close()
 
 
@@ -241,7 +270,9 @@ def rodar_scraper_com_progresso(comando, cwd, env, timeout_segundos, callback_li
 
     stderr_linhas = []
     thread_stderr = threading.Thread(
-        target=_ler_stderr_em_thread, args=(processo.stderr, stderr_linhas), daemon=True
+        target=_ler_stderr_em_thread,
+        args=(processo.stderr, stderr_linhas, callback_linha),
+        daemon=True,
     )
     thread_stderr.start()
 
@@ -309,7 +340,7 @@ def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
     """Roda o binário do scraper uma vez, com progresso ao vivo.
     Retorna None em sucesso, ou a mensagem de erro amigável em falha."""
     comando_scraper = [
-        str(APP_DIR / "google-maps-scraper.exe"),
+        str(APP_DIR / NOME_SCRAPER),
         "-input", str(APP_DIR / "queries.txt"),
         "-results", str(arquivo_bruto),
         "-lang", "pt",
@@ -336,8 +367,8 @@ def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
             "ou confira sua conexão com a internet."
         )
     except FileNotFoundError:
-        logger.exception("google-maps-scraper.exe não encontrado")
-        return "O programa google-maps-scraper.exe não foi encontrado na pasta do projeto."
+        logger.exception("%s não encontrado", NOME_SCRAPER)
+        return f"O programa {NOME_SCRAPER} não foi encontrado na pasta do projeto."
 
     if returncode != 0:
         logger.error("scraper falhou (código %s). stderr: %s", returncode, stderr_completo[-2000:])
@@ -425,12 +456,12 @@ def _rodar_busca_em_background(areas=None):
 
         # caminho do Node usado pelo Playwright embutido no scraper: pode vir da
         # tabela configuracoes (chave "node_path"), da variável de ambiente, ou
-        # cai no local padrão de instalação do Windows
+        # cai no `node` do PATH (local padrão de instalação no Windows)
         ambiente = os.environ.copy()
         ambiente["PLAYWRIGHT_NODEJS_PATH"] = (
             db.obter_config("node_path")
             or ambiente.get("PLAYWRIGHT_NODEJS_PATH")
-            or r"C:\Program Files\nodejs\node.exe"
+            or _caminho_node_padrao()
         )
 
         if areas:

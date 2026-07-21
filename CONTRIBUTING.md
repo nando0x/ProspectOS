@@ -13,8 +13,7 @@ processo é leve — só bom senso.
 
 ## Ambiente de desenvolvimento
 
-Pré-requisitos: Python 3.11+, Node.js 20+, Windows (o scraper de Maps e os `.bat`
-são específicos da plataforma).
+Pré-requisitos: Python 3.11+, Node.js 20+, Windows, Linux ou macOS.
 
 ```powershell
 # Backend
@@ -27,8 +26,8 @@ cd ../frontend
 npm install
 ```
 
-Suba os dois de uma vez com o `iniciar.bat` na raiz. Backend em `:5000`,
-frontend em `:5173`.
+Suba os dois de uma vez com o `iniciar.bat` (Windows) ou `./iniciar.sh` (Linux/macOS)
+na raiz. Backend em `:5000`, frontend em `:5173`.
 
 ## Rodando os testes
 

@@ -19,7 +19,7 @@ num CRM visual — do primeiro contato ao fechamento.
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
-![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Windows_%7C_Linux_%7C_macOS-0078D6)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 [![GitHub stars](https://img.shields.io/github/stars/nando0x/ProspectOS?style=social)](https://github.com/nando0x/ProspectOS)
@@ -76,7 +76,7 @@ Leia isto com atenção antes de rodar qualquer coisa:
 - 🔧 **Sem garantia de funcionamento contínuo.** Instagram e Google mudam suas proteções com frequência. Se algo parar de funcionar, é provavelmente por isso.
 - 🚫 **Sem afiliação** com Google, Meta/Instagram, nem com os projetos de terceiros usados (`gosom/google-maps-scraper`, `instagrapi`).
 - 📄 Fornecido **"como está"**, sem garantias. Veja [`LICENSE`](LICENSE) (MIT).
-- 🪟 **Windows apenas.** Os scripts de conveniência (`.bat`) e o binário do scraper de Maps são específicos para Windows.
+- 💻 **Windows, Linux e macOS.** Cada plataforma tem seu script de conveniência (`iniciar.bat` / `iniciar.sh`) e sua própria build do scraper de Maps. No Linux/macOS, rode `backend/preparar_driver_playwright.sh` uma vez para o scraper conseguir subir o navegador interno.
 
 ---
 
@@ -97,7 +97,7 @@ Leia isto com atenção antes de rodar qualquer coisa:
 | 📊 **CRM visual + Kanban** | Funil de status com histórico, drag-and-drop, tags, observações e follow-up com cadência crescente (+3/+5/+7 dias) |
 | 📈 **Analytics** | Funil de conversão e desempenho por nicho, para os dois canais separados e combinados |
 | 🧰 **Produtividade** | Filtros (inclusive por situação do site), histórico de buscas, busca global (Ctrl+K), exportação CSV, ações em lote, tema claro/escuro |
-| 🔐 **Segurança** | Chaves de API guardadas no cofre de credenciais do sistema (Windows/DPAPI), nunca em texto puro |
+| 🔐 **Segurança** | Chaves de API guardadas no cofre de credenciais do sistema via `keyring` (DPAPI no Windows, Secret Service no Linux, Keychain no macOS), nunca em texto puro |
 
 ---
 
@@ -107,7 +107,7 @@ Leia isto com atenção antes de rodar qualquer coisa:
 
 - [Python 3.11+](https://www.python.org/downloads/)
 - [Node.js 20+](https://nodejs.org/)
-- Windows (scripts `.bat` e o scraper de Maps são específicos da plataforma)
+- Windows, Linux ou macOS
 
 ### 1. Clone o repositório
 
@@ -145,17 +145,26 @@ Tem duas formas de configurar, escolha a que for mais fácil pra você:
 
 ### 3. Baixe a dependência externa do scraper
 
-O `google-maps-scraper.exe` **não vem no repositório** (é um binário de terceiros, ~60MB, de outro projeto open source, então não faz sentido versionar binário compilado dentro de um repo git). Passo a passo completo, sem pular nada:
+O binário do `google-maps-scraper` **não vem no repositório** (é um binário de terceiros, ~60MB, de outro projeto open source, então não faz sentido versionar binário compilado dentro de um repo git). Passo a passo completo, sem pular nada:
 
 1. Acesse **[a página de releases mais recente](https://github.com/gosom/google-maps-scraper/releases/latest)**.
 2. Role até a seção **"Assets"** (fica perto do final da página, às vezes precisa clicar para expandir).
-3. Procure o arquivo para **Windows**. O nome muda a cada versão nova, mas segue sempre o padrão `google_maps_scraper-<versão>-windows-amd64.exe`, por exemplo: `google_maps_scraper-1.16.1-windows-amd64.exe`.
-
-   > ⚠️ Não baixe as versões `linux` ou `darwin` (essas são para Linux/Mac). Você quer especificamente a que tem `windows` no nome.
-4. Depois de baixado, **renomeie o arquivo para exatamente `google-maps-scraper.exe`** (tudo minúsculo, com hífens).
-   - No Windows, se você não estiver vendo a extensão `.exe` no nome do arquivo, isso é normal (o Windows esconde extensões conhecidas por padrão). Não precisa se preocupar, só renomeie a parte visível do nome.
+3. Baixe o asset da **sua plataforma** (o nome muda a cada versão, mas o padrão é fixo — ex.: `google_maps_scraper-1.16.1-...`):
+   - **Windows:** `google_maps_scraper-<versão>-windows-amd64.exe`
+   - **Linux:** `google_maps_scraper-<versão>-linux-amd64`
+   - **macOS:** `google_maps_scraper-<versão>-darwin-amd64` (ou `darwin-arm64` no Apple Silicon)
+4. Renomeie o arquivo para o nome exato que o projeto espera (tudo minúsculo, com hífens):
+   - **Windows:** `google-maps-scraper.exe`
+   - **Linux/macOS:** `google-maps-scraper` (sem extensão) e dê permissão de execução: `chmod +x google-maps-scraper`
+   - No Windows, se você não estiver vendo a extensão `.exe` no nome do arquivo, isso é normal (o Windows esconde extensões conhecidas por padrão). Só renomeie a parte visível do nome.
 5. Mova esse arquivo para dentro da pasta `backend/` deste projeto, **no mesmo nível** do arquivo `app.py` (não dentro de nenhuma subpasta).
-6. Para conferir se deu certo, a pasta `backend/` deve conter, lado a lado: `app.py`, `processar.py` e `google-maps-scraper.exe`.
+6. Para conferir se deu certo, a pasta `backend/` deve conter, lado a lado: `app.py`, `processar.py` e o binário do scraper.
+
+> 🐧 **Linux/macOS — um passo extra do navegador:** o scraper embute o Playwright, que tenta baixar o driver de um CDN antigo já desativado. Rode uma vez, dentro da pasta `backend/`:
+> ```bash
+> ./preparar_driver_playwright.sh
+> ```
+> Sem isso a busca falha com "não conseguiu iniciar o navegador interno". No Windows esse passo não é necessário.
 
 > ✅ **Como saber se funcionou:** ao clicar em "Nova busca" no canal Google Maps do ProspectOS, a busca deve iniciar normalmente. Se aparecer um erro dizendo que o programa não foi encontrado, revise o nome do arquivo (passo 4) e o local onde ele está (passo 5). São os dois erros mais comuns.
 >
@@ -194,6 +203,14 @@ Use o atalho que sobe backend + frontend juntos e abre o navegador automaticamen
 ```powershell
 cd ..
 iniciar.bat
+```
+
+No Linux/macOS, use o equivalente:
+
+```bash
+cd ..
+chmod +x iniciar.sh   # só na primeira vez
+./iniciar.sh
 ```
 
 Ou manualmente, em dois terminais:
@@ -266,7 +283,7 @@ py processar.py
 
 ```
 ProspectOS/
-├── iniciar.bat              # sobe backend + frontend juntos
+├── iniciar.bat / iniciar.sh # sobe backend + frontend juntos (Windows / Linux-macOS)
 ├── backend/
 │   ├── app.py                # monta o Flask e registra os blueprints
 │   ├── rotas_*.py            # rotas por domínio (leads, instagram, analytics, config)
