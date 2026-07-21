@@ -5,6 +5,7 @@ leads.db-*
 saidas/
 __pycache__/
 *.pyc
+.venv/
 logs/
 *.log
 backups/
