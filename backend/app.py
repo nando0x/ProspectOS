@@ -36,7 +36,7 @@ load_dotenv()
 paths.garantir_pastas_de_dados()
 
 APP_DIR = paths.DIR_RECURSOS
-PASTA_LOGS = paths.DIR_DADOS / "logs"
+PASTA_LOGS = paths.DIR_LOGS
 PASTA_LOGS.mkdir(parents=True, exist_ok=True)
 _handler_log = RotatingFileHandler(
     PASTA_LOGS / "prospeccao.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8"

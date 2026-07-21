@@ -2,12 +2,14 @@
  * Shell de desktop do ProspectOS.
  *
  * Papel deste processo:
- *  1. subir o backend empacotado (PyInstaller) como processo filho ("sidecar");
- *  2. descobrir em que porta ele ficou (lê "LISTENING_ON=<porta>" do stdout,
- *     com fallback pro porta.txt em %APPDATA%\ProspectOS);
- *  3. abrir a janela apontando pra http://127.0.0.1:<porta>;
- *  4. encerrar o backend junto com a janela;
- *  5. auto-update via GitHub Releases (electron-updater) - baixa em segundo
+ *  1. resolver os paths da aplicação via Electron (app.getPath);
+ *  2. subir o backend empacotado (PyInstaller) como processo filho ("sidecar")
+ *     passando os paths resolvidos nas variáveis PROSPECTOS_*;
+ *  3. descobrir em que porta ele ficou (lê "LISTENING_ON=<porta>" do stdout,
+ *     com fallback pro porta.txt em PROSPECTOS_DATA_DIR);
+ *  4. abrir a janela apontando pra http://127.0.0.1:<porta>;
+ *  5. encerrar o backend junto com a janela;
+ *  6. auto-update via GitHub Releases (electron-updater) - baixa em segundo
  *     plano e instala no próximo fechamento do app.
  */
 
@@ -19,6 +21,8 @@ const fs = require("fs");
 let janela = null;
 let backend = null;
 let backendEncerradoDeProposito = false;
+let PROSPECTOS_DATA_DIR = null;
+let PROSPECTOS_LOG_DIR = null;
 
 // só uma instância do app por vez (a segunda só foca a janela da primeira)
 const primeiraInstancia = app.requestSingleInstanceLock();
@@ -36,18 +40,57 @@ if (!primeiraInstancia) {
 function caminhoDoBackend() {
   if (app.isPackaged) {
     // empacotado: o bundle do PyInstaller vai junto como extraResource
-    return path.join(process.resourcesPath, "backend", "ProspectOS.exe");
+    const ext = process.platform === "win32" ? ".exe" : "";
+    return path.join(process.resourcesPath, "backend", `ProspectOS${ext}`);
   }
   // dev: usa o bundle buildado na pasta do projeto
-  return path.join(__dirname, "..", "backend", "dist", "ProspectOS", "ProspectOS.exe");
+  const ext = process.platform === "win32" ? ".exe" : "";
+  return path.join(__dirname, "..", "backend", "dist", "ProspectOS", `ProspectOS${ext}`);
 }
 
 function arquivoDaPorta() {
-  return path.join(process.env.APPDATA, "ProspectOS", "porta.txt");
+  return path.join(PROSPECTOS_DATA_DIR, "porta.txt");
+}
+
+/** Resolve paths do ProspectOS usando Electron como autoridade. */
+function resolverPaths() {
+  PROSPECTOS_DATA_DIR = app.getPath("userData");
+  PROSPECTOS_LOG_DIR = app.getPath("logs");
+
+  // Garantir que não haja duplicação do nome "ProspectOS"
+  // (app.getPath("userData") já termina em "ProspectOS" quando empacotado)
+  const nomeBase = path.basename(PROSPECTOS_DATA_DIR);
+  if (nomeBase !== "ProspectOS") {
+    // Em dev o app name pode ser "prospectos-desktop"; normaliza
+    PROSPECTOS_DATA_DIR = path.join(path.dirname(PROSPECTOS_DATA_DIR), "ProspectOS");
+    PROSPECTOS_LOG_DIR = path.join(
+      process.platform === "darwin"
+        ? path.join(app.getPath("home"), "Library", "Logs", "ProspectOS")
+        : path.dirname(PROSPECTOS_DATA_DIR),
+      "ProspectOS",
+      "logs"
+    );
+  }
+
+  const PROSPECTOS_TEMP_DIR = path.join(app.getPath("temp"), "ProspectOS");
+  const PROSPECTOS_RESOURCE_DIR = process.resourcesPath || path.join(__dirname, "..");
+
+  // Cria diretórios antes do spawn
+  try {
+    fs.mkdirSync(PROSPECTOS_DATA_DIR, { recursive: true });
+    fs.mkdirSync(PROSPECTOS_LOG_DIR, { recursive: true });
+    fs.mkdirSync(PROSPECTOS_TEMP_DIR, { recursive: true });
+  } catch (erro) {
+    throw new Error(
+      `Não foi possível criar os diretórios do ProspectOS:\n${erro.message}`
+    );
+  }
+
+  return { PROSPECTOS_DATA_DIR, PROSPECTOS_LOG_DIR, PROSPECTOS_TEMP_DIR, PROSPECTOS_RESOURCE_DIR };
 }
 
 /** Sobe o backend e resolve com a porta anunciada. */
-function subirBackend() {
+function subirBackend(pathsResolvidos) {
   return new Promise((resolver, rejeitar) => {
     const exe = caminhoDoBackend();
     if (!fs.existsSync(exe)) {
@@ -63,7 +106,14 @@ function subirBackend() {
     }
 
     backend = spawn(exe, [], {
-      env: { ...process.env, PROSPECTOS_NO_BROWSER: "1" },
+      env: {
+        ...process.env,
+        PROSPECTOS_NO_BROWSER: "1",
+        PROSPECTOS_DATA_DIR: pathsResolvidos.PROSPECTOS_DATA_DIR,
+        PROSPECTOS_LOG_DIR: pathsResolvidos.PROSPECTOS_LOG_DIR,
+        PROSPECTOS_TEMP_DIR: pathsResolvidos.PROSPECTOS_TEMP_DIR,
+        PROSPECTOS_RESOURCE_DIR: pathsResolvidos.PROSPECTOS_RESOURCE_DIR,
+      },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
@@ -156,13 +206,17 @@ function configurarAutoUpdate() {
 
 app.whenReady().then(async () => {
   try {
-    const porta = await subirBackend();
+    const pathsResolvidos = resolverPaths();
+    const porta = await subirBackend(pathsResolvidos);
     criarJanela(porta);
     configurarAutoUpdate();
   } catch (erro) {
+    const logPath = PROSPECTOS_LOG_DIR
+      ? path.join(PROSPECTOS_LOG_DIR, "prospeccao.log")
+      : "logs/prospeccao.log";
     dialog.showErrorBox(
       "ProspectOS não conseguiu iniciar",
-      `${erro.message}\n\nVeja os logs em %APPDATA%\\ProspectOS\\logs\\prospeccao.log`
+      `${erro.message}\n\nVeja os logs em: ${logPath}`
     );
     app.quit();
   }

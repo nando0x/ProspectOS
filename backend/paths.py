@@ -1,24 +1,23 @@
-"""Caminhos centrais do app: onde ficam os recursos (read-only) e os dados (graváveis).
+"""Caminhos centrais do app.
 
-Dois modos de execução:
+Autoridade dos paths:
+1. PROSPECTOS_* explícita (variável de ambiente)
+2. Fallback nativo por plataforma
 
-- **Fonte** (clone do repo, `py app.py`): tudo fica na pasta do projeto, como sempre
-  foi — nada muda para quem desenvolve ou roda os testes.
-- **Empacotado** (PyInstaller, `sys.frozen`): o código e os recursos viram um bundle
-  read-only (possivelmente em Program Files), então os dados do usuário (banco,
-  backups, saídas, sessão do Instagram) PRECISAM ir para uma pasta gravável —
-  `%APPDATA%\\ProspectOS`. Sem essa separação, o app instalado não consegue gravar
-  nada e um update apagaria os leads.
+No modo desktop, o Electron resolve os paths e passa via PROSPECTOS_*.
+O backend usa fallback próprio quando executado sem Electron.
 
-Regra prática para os outros módulos:
-- arquivo que o app só LÊ e vem junto do código (scraper .exe, os .py do instagram,
-  o build do frontend) → `caminho_recurso(...)`
-- arquivo que o app ESCREVE (leads.db, backups/, saidas/, queries.txt, logs/,
-  instagram/sessao/, instagram/comentarios/) → `caminho_dados(...)`
+Quatro diretórios raiz:
+
+  DIR_DADOS     dados graváveis (banco, backups, saídas, sessões)
+  DIR_LOGS      logs
+  DIR_TEMP      temporários
+  DIR_RECURSOS  read-only (código, frontend buildado, binários)
 """
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 # PyInstaller define sys.frozen no executável gerado
@@ -26,22 +25,77 @@ EMPACOTADO = bool(getattr(sys, "frozen", False))
 
 _DIR_FONTE = Path(__file__).parent
 
-if EMPACOTADO:
-    # --onedir: recursos adicionados via --add-data ficam em sys._MEIPASS
-    # (na prática a pasta _internal ao lado do .exe)
-    DIR_RECURSOS = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
-    DIR_DADOS = Path(os.environ.get("APPDATA", str(Path.home()))) / "ProspectOS"
-else:
-    DIR_RECURSOS = _DIR_FONTE
-    DIR_DADOS = _DIR_FONTE
+
+# ── helpers de validação ──────────────────────────────────────────────────
+
+def _val(var: str) -> str | None:
+    """Retorna o valor da env var ou None se vazia/ausente."""
+    val = os.environ.get(var)
+    if val is not None and val.strip():
+        return val.strip()
+    return None
 
 
-def caminho_recurso(*partes):
+def _abs(caminho: str | Path) -> Path:
+    """Expande ~ e converte para path absoluto."""
+    p = Path(os.path.expanduser(str(caminho)))
+    if p.is_absolute():
+        return p
+    return p.absolute()
+
+
+# ── defaults por plataforma ───────────────────────────────────────────────
+
+def _default_data_dir() -> Path:
+    if sys.platform == "win32":
+        base = _val("APPDATA")
+        return _abs(Path(base or "~") / "ProspectOS")
+    if sys.platform == "darwin":
+        return _abs(Path.home() / "Library" / "Application Support" / "ProspectOS")
+    xdg = _val("XDG_DATA_HOME")
+    if xdg:
+        return _abs(Path(xdg) / "ProspectOS")
+    return _abs(Path.home() / ".local" / "share" / "ProspectOS")
+
+
+def _default_log_dir() -> Path:
+    if sys.platform == "darwin":
+        return _abs(Path.home() / "Library" / "Logs" / "ProspectOS")
+    if sys.platform == "win32":
+        return _default_data_dir() / "logs"
+    xdg = _val("XDG_STATE_HOME")
+    if xdg:
+        return _abs(Path(xdg) / "ProspectOS" / "logs")
+    return _abs(Path.home() / ".local" / "state" / "ProspectOS" / "logs")
+
+
+def _default_temp_dir() -> Path:
+    tmpdir_base = _val("TMPDIR") or tempfile.gettempdir()
+    return _abs(Path(tmpdir_base) / "ProspectOS")
+
+
+def _default_resource_dir() -> Path:
+    if EMPACOTADO:
+        return _abs(Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)))
+    return _DIR_FONTE
+
+
+# ── constantes resolvidas ─────────────────────────────────────────────────
+
+DIR_DADOS: Path = _abs(_val("PROSPECTOS_DATA_DIR") or _default_data_dir())
+DIR_LOGS: Path = _abs(_val("PROSPECTOS_LOG_DIR") or _default_log_dir())
+DIR_TEMP: Path = _abs(_val("PROSPECTOS_TEMP_DIR") or _default_temp_dir())
+DIR_RECURSOS: Path = _abs(_val("PROSPECTOS_RESOURCE_DIR") or _default_resource_dir())
+
+
+# ── helpers públicos ──────────────────────────────────────────────────────
+
+def caminho_recurso(*partes: str) -> Path:
     """Caminho de um recurso read-only distribuído junto com o app."""
     return DIR_RECURSOS.joinpath(*partes)
 
 
-def caminho_dados(*partes, criar_pai=False):
+def caminho_dados(*partes: str, criar_pai: bool = False) -> Path:
     """Caminho de um arquivo/pasta de dados do usuário (sempre gravável).
 
     Com criar_pai=True, garante que o diretório pai exista antes de devolver —
@@ -53,8 +107,25 @@ def caminho_dados(*partes, criar_pai=False):
     return caminho
 
 
-def garantir_pastas_de_dados():
+def caminho_log(*partes: str, criar_pai: bool = False) -> Path:
+    """Caminho de um arquivo/pasta de log."""
+    caminho = DIR_LOGS.joinpath(*partes)
+    if criar_pai:
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+    return caminho
+
+
+def caminho_temp(*partes: str, criar_pai: bool = False) -> Path:
+    """Caminho de um arquivo/pasta temporário."""
+    caminho = DIR_TEMP.joinpath(*partes)
+    if criar_pai:
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+    return caminho
+
+
+def garantir_pastas_de_dados() -> None:
     """Cria a estrutura de pastas graváveis (chamado no startup do app)."""
     DIR_DADOS.mkdir(parents=True, exist_ok=True)
-    for sub in ("backups", "saidas", "logs", Path("instagram") / "sessao", Path("instagram") / "comentarios"):
+    DIR_LOGS.mkdir(parents=True, exist_ok=True)
+    for sub in ("backups", "saidas", Path("instagram") / "sessao", Path("instagram") / "comentarios"):
         (DIR_DADOS / sub).mkdir(parents=True, exist_ok=True)
