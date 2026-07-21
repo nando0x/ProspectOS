@@ -67,7 +67,7 @@ def _run(cmd, cwd=None, **kwargs):
     return result
 
 
-TOTAL_STEPS = 7
+TOTAL_STEPS = 8
 
 
 def validate_environment():
@@ -255,10 +255,6 @@ def build_scraper():
 def stage_resources():
     _step(5, TOTAL_STEPS, "Montando staging de recursos")
 
-    if STAGING_DIR.exists():
-        _info(f"Removendo staging existente ({_du(STAGING_DIR)})")
-        shutil.rmtree(STAGING_DIR)
-
     STAGING_TARGET.mkdir(parents=True, exist_ok=True)
 
     shared_dest = STAGING_TARGET / "shared"
@@ -357,10 +353,10 @@ def build_electron():
 
 
 def validate_app():
-    _step(7, TOTAL_STEPS, "Validando .app") if False else None
+    _step(TOTAL_STEPS, TOTAL_STEPS, "Validando .app")
 
     output_dir = DESKTOP_DIR / "saida"
-    app_dirs = list(output_dir.glob("*.app"))
+    app_dirs = list(output_dir.rglob("*.app"))
     if not app_dirs:
         _bail(f"Nenhum .app encontrado em {output_dir}")
 

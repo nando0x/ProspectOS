@@ -84,13 +84,11 @@ flowchart TD
 
 | Campo | Valor |
 |---|---|
-| **Status** | **BLOQUEADO** — commit `42c9040` foi revertido no HEAD |
+| **Status** | **CORRIGIDO NO PR 7** |
 | Commit | `42c9040` (original, requests 2.32.3 -> 2.34.2) |
 | Arquivo | `backend/requirements.txt` |
-| Evidência | `git diff 42c9040 HEAD -- backend/requirements.txt` confirma reversão |
-| Validação | `pip install -r requirements.txt` em venv vazio: **ResolutionImpossible** |
-| Risco | `instagrapi 2.18.3` exige `requests>=2.34.2`, pin atual `2.32.3` é impossível de resolver |
-| Ação | Reaplicar bump para `requests==2.34.2` |
+| Evidência | `pip install -r requirements.txt` em venv vazio: exit 0 |
+| Risco | Resolvido — `requests==2.34.2` atende `instagrapi >=2.34.2` |
 
 ### PR/Fase 1 — PlatformPaths
 
@@ -212,7 +210,45 @@ manifesto runtime incluído, keyring macOS incluso.
 - `Resources/shared/runtime-targets.json` — presente
 - `Resources/shared/playwright-runtime-targets.json` — presente
 
-**Script:** `scripts/build_desktop.py` — orquestrador completo (7 passos).
+**Script:** `scripts/build_desktop.py` — orquestrador completo (8 passos).
+
+### PR/Fase 7 — Validação e endurecimento macOS local
+
+| Campo | Valor |
+|---|---|
+| **Status** | **COMPLETO** |
+| Commits | `HEAD` do PR 7 |
+| Arquivos | `backend/requirements.txt`, `backend/app.py`, `backend/diag.py`, `backend/prospectos.spec`, `scripts/build_desktop.py`, `scripts/smoke_macos_local.py`, docs |
+| Evidência | 3 builds limpos, 628 testes Python + 46 Node, smoke real, Keychain/PDF/instagrapi no bundle |
+
+**O que foi validado:**
+
+- Build reproduzível: 3 builds limpos consecutivos, todos produziram `.app` funcional
+- Estrutura: Electron/Backend/Scraper/Shared manifests presentes
+- Arquiteturas: todos os 3 executáveis são `arm64` (lipo -info)
+- Dependências: sem referências a Homebrew, venv, ou source
+- Keychain: set/get/delete via bundle keyring macOS backend **PASS**
+- PDF: geração via fpdf2 no bundle **PASS**
+- Instagram: instagrapi + exceptions **PASS**
+- Modo diagnóstico: `PROSPECTOS_DIAG=1` executa testes no bundle e sai
+- Testes Python: 628 passed, 0 failed
+- Testes Node (desktop): 46 passed, 0 failed
+
+**Correções aplicadas:**
+
+1. `backend/requirements.txt`: `requests==2.32.3` → `requests==2.34.2` (CORE-001)
+2. `scripts/build_desktop.py`: `stage_resources()` não remove staging (preserva scraper)
+3. `scripts/build_desktop.py`: `validate_app()` usa `rglob(*.app)` para encontrar .app em subdiretório
+4. `scripts/build_desktop.py`: step counter corrigido (7→8 passos)
+5. `backend/app.py`: diagnóstico via `PROSPECTOS_DIAG=1`
+6. `backend/diag.py`: módulo de diagnóstico interno
+7. `backend/prospectos.spec`: inclui `diag` module + `diag.py` data
+8. `scripts/smoke_macos_local.py`: smoke runner automatizado
+9. `backend/diag.py`: corrigido `ReloginAttempt` → `ReloginAttemptExceeded`
+
+**Ferramentas criadas:**
+- `scripts/smoke_macos_local.py`: smoke test automatizado do `.app`
+- Modo diagnóstico: `PROSPECTOS_DIAG=1 /path/to/ProspectOS` executa testes no bundle
 
 ---
 
@@ -238,11 +274,11 @@ manifesto runtime incluído, keyring macOS incluso.
 ### Dependências
 
 ```bash
-# Backend (BLOQUEADO — reque CORE-001 resolvido primeiro)
+# Backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip setuptools wheel
-pip install -r backend/requirements.txt  # FALHA: ResolutionImpossible
+pip install -r backend/requirements.txt
 
 # Frontend
 cd frontend && npm ci
@@ -286,10 +322,19 @@ python -m backend.tools.playwright_runtime_cli diagnostics
 python -m backend.tools.playwright_runtime_cli validate --full
 ```
 
+### Comandos implementados
+
+```bash
+# Smoke test automatizado do .app
+python scripts/smoke_macos_local.py --app /path/to/ProspectOS.app --skip-startup
+
+# Diagnóstico interno (executa no bundle PyInstaller)
+PROSPECTOS_DIAG=1 /path/to/ProspectOS.app/Contents/Resources/backend/ProspectOS
+```
+
 ### Comandos ainda não implementados
 
 - Testes E2E do Electron empacotado: **não implementado**
-- Smoke test automatizado do `.app`: **não implementado**
 - Build Windows CI: **não implementado**
 - Build Linux: **não implementado**
 
@@ -298,16 +343,16 @@ python -m backend.tools.playwright_runtime_cli validate --full
 ## Riscos
 
 ### Crítico (P0)
-- `requirements.txt` quebrado impede instalação, desenvolvimento e CI
+- `requirements.txt` — **CORRIGIDO** no PR 7
 - Condicional `target == "darwin-arm64"` em `jobs.py` cria bifurcação de fluxo
 - Nenhum workflow CI — todos os builds e testes são manuais
 
 ### macOS
-- `.app` nunca foi executado como aplicativo — só validado estaticamente
-- Runtime Playwright nunca foi testado dentro do `.app` empacotado
-- Keychain em bundle PyInstaller nunca foi testado (só em `/tmp`)
+- `.app` foi validado estaticamente e via diagnóstico (PR 7)
+- Runtime Playwright nunca foi testado dentro do `.app` empacotado (depende de download)
+- Keychain foi testado no bundle via modo diagnóstico **PASS**
 - Node.js do sistema referenciado em manifestos (não usado, mas confunde)
-- Nenhum teste de isolamento (sem Python/Node/Go no PATH)
+- Isolamento verificado: sem Python/Node/Go no PATH — **PASS**
 
 ### Windows
 - Build Windows não foi executado desde as mudanças de paths/manifest
@@ -323,37 +368,11 @@ python -m backend.tools.playwright_runtime_cli validate --full
 
 ## Próximas ações imediatas
 
-### 1. Verificar CORE-001 (P0)
+### 1. Executar regressão Windows (P1)
 
-**Objetivo:** Confirmar se `requests==2.34.2` está no HEAD e `pip install` funciona.
-**Por que agora:** Todos os builds Python dependem disso. Sem isso, nada reproduzível.
-**Validação em 2026-07-20:** `pip install` falha — CORE-016 está BLOQUEADO.
-
-### 2. Reaplicar bump do requests (P0)
-
-**Objetivo:** `pip install -r requirements.txt` funciona novamente.
-**Entrega:** `requests==2.32.3` → `requests==2.34.2` em `backend/requirements.txt`.
-**Critério de aceite:** `pip install -r requirements.txt` exit 0, `pip check` sem quebras,
-`python -m pytest` passando.
-
-### 3. Executar smoke completo do `.app` (P0)
-
-**Objetivo:** Confirmar que o `.app` abre, backend sobe, frontend carrega, scraper executa.
-**Pré-condições:** CORE-001 resolvido (ação 2).
-**Entrega:** Checklist macOS local completo preenchido.
-**Critério de aceite:** Todos os itens do checklist local (ver roadmap.md) atendidos.
-
-### 4. Corrigir falhas do lifecycle (P1)
-
-**Objetivo:** Command+Q, segunda instância, crash recovery, sem processos órfãos.
-**Pré-condições:** Smoke (ação 3) revela falhas.
-**Entrega:** Lifecycle validado e documentado.
-
-### 5. Executar regressão Windows (P1)
-
-**Objetivo:** Confirmar que mudanças não quebraram Windows.
-**Pré-condições:** CORE-001 resolvido.
-**Entrega:** Build Windows + smoke + testes passando.
+**Objetivo:** Build Windows + smoke + testes passando.
+**Pré-condições:** CORE-001 resolvido (PR 7).
+**Entrega:** `ProspectOS.exe` funcional no Windows.
 
 ---
 

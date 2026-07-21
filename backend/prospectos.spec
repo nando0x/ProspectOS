@@ -64,6 +64,11 @@ for insta_module in ("login.py", "raspar_comentarios.py", "enriquecer_perfis.py"
     if p.is_file():
         datas.append((str(p), "instagram"))
 
+# Diagnostic tool (imported dynamically via PROSPECTOS_DIAG env var)
+diag_py = SPEC_DIR / "diag.py"
+if diag_py.is_file():
+    datas.append((str(diag_py), "."))
+
 # ── hidden imports ──────────────────────────────────────────────────────────
 hiddenimports = [
     "waitress",
@@ -71,6 +76,7 @@ hiddenimports = [
     "instagrapi.exceptions",
     "fpdf",
     "ddgs",
+    "diag",
 ]
 
 # Keyring backends — platform-conditional

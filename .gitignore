@@ -16,6 +16,10 @@ instalador/saida/
 backend/dist/
 backend/build/
 
+# artefatos do PyInstaller quando executado da raiz do repo
+dist/
+build/
+
 # build temporario do scraper
 .tmp-scraper-build/
 

@@ -20,6 +20,7 @@ O código está dividido por responsabilidade:
 import logging
 import os
 import sqlite3
+import sys
 import threading
 import webbrowser
 from logging.handlers import RotatingFileHandler
@@ -32,6 +33,14 @@ from werkzeug.exceptions import HTTPException
 import paths
 
 load_dotenv()
+
+# Diagnostic mode — runs bundled env tests and exits
+if os.environ.get("PROSPECTOS_DIAG") == "1":
+    from diag import run_all
+
+    results = run_all()
+    print(__import__("json").dumps(results, indent=2, ensure_ascii=False))
+    sys.exit(0 if all(r["status"] != "FAIL" for r in results) else 1)
 
 paths.garantir_pastas_de_dados()
 
