@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "description": "Playwright runtime target specification for ProspectOS — versioned, reproducible, isolated.",
+  "runtimes": {
+    "darwin-arm64": {
+      "runtimeId": "pw-1.60.0-chromium-1223",
+      "playwright": {
+        "driverVersion": "1.60.0",
+        "coreVersion": "1.60.0",
+        "goModule": "playwright-community/playwright-go",
+        "goModuleVersion": "v0.6000.0"
+      },
+      "node": {
+        "version": "24.18.0",
+        "archive": "node-v24.18.0-darwin-arm64.tar.gz",
+        "url": "https://nodejs.org/dist/v24.18.0/node-v24.18.0-darwin-arm64.tar.gz",
+        "sha256": "e1a97e14c99c803e96c7339403282ea05a499c32f8d83defe9ef5ec66f979ed1"
+      },
+      "playwrightCore": {
+        "archive": "playwright-core-1.60.0.tgz",
+        "url": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.60.0.tgz",
+        "sha256": "8b1df81ba75e90a41eb5c996350ea7ecc1c915ea643ec55138f91c949c5a25bf"
+      },
+      "browsers": {
+        "chromium": {
+          "revision": 1223,
+          "expectedVersion": "148.0.7778.96"
+        },
+        "headlessShell": {
+          "revision": 1223
+        },
+        "ffmpeg": {
+          "revision": 1011
+        }
+      },
+      "licenses": {
+        "playwrightCore": "Apache-2.0",
+        "node": "MIT",
+        "chromium": "BSD-3-Clause",
+        "ffmpeg": "LGPL-2.1-or-later"
+      }
+    }
+  }
+}
