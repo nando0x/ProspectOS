@@ -13,10 +13,11 @@ export function FaqDoc() {
 
       <DocH2>A busca no Maps não retornou nenhum resultado, o que houve?</DocH2>
       <DocP>
-        Confira se o <code>google-maps-scraper.exe</code> está na pasta
-        correta e se o nicho/cidade está bem escrito. Nichos muito
-        específicos ou cidades pequenas podem realmente não ter resultado
-        qualificado (nota alta + sem site).
+        Confira se o scraper do Google Maps está na pasta correta do backend
+        (<code>google-maps-scraper.exe</code> no Windows ou{" "}
+        <code>google-maps-scraper</code> no macOS/Linux) e se o nicho/cidade
+        está bem escrito. Nichos muito específicos ou cidades pequenas podem
+        realmente não ter resultado qualificado (nota alta + sem site).
       </DocP>
 
       <DocH2>Posso usar sem chave de IA configurada?</DocH2>

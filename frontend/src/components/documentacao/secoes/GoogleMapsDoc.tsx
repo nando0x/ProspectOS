@@ -24,8 +24,9 @@ export function GoogleMapsDoc() {
         background e mostra o progresso ao vivo.
       </DocP>
       <DocCallout variante="warning">
-        A busca depende do <DocCode>google-maps-scraper.exe</DocCode>, um
-        programa externo que precisa estar instalado na pasta do backend. Veja
+        A busca depende do scraper externo <DocCode>gosom/google-maps-scraper</DocCode>,
+        instalado na pasta do backend como <DocCode>google-maps-scraper.exe</DocCode>
+        no Windows ou <DocCode>google-maps-scraper</DocCode> no macOS/Linux. Veja
         a seção "Instalação" para os detalhes.
       </DocCallout>
 

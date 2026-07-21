@@ -2,9 +2,11 @@
 API do CRM local da ferramenta de prospecção.
 
 Uso:
-    py app.py
+    py app.py              # Windows
+    python3.11 app.py      # macOS/Linux
 A API sobe em http://localhost:5000. A interface (React) roda em
-http://localhost:5173 - use o iniciar.bat na raiz pra subir os dois juntos.
+http://localhost:5173 - use iniciar.bat (Windows) ou iniciar.sh (macOS/Linux)
+na raiz pra subir os dois juntos.
 
 O código está dividido por responsabilidade:
     rotas_leads.py      - CRM dos leads do Google Maps + disparo da busca
@@ -94,7 +96,7 @@ def servir_frontend(caminho):
         abort(404)  # rota de API inexistente não deve devolver HTML
     if not DIR_FRONTEND_DIST.exists():
         return (
-            jsonify({"erro": "Interface não encontrada. Em dev, use http://localhost:5173 (iniciar.bat)."}),
+            jsonify({"erro": "Interface não encontrada. Em dev, use http://localhost:5173 (iniciar.bat/iniciar.sh)."}),
             404,
         )
     if (DIR_FRONTEND_DIST / caminho).is_file():
@@ -154,7 +156,7 @@ if __name__ == "__main__":
         paths.caminho_dados("porta.txt", criar_pai=True).write_text(str(porta), encoding="utf-8")
         logger.info("servindo em http://127.0.0.1:%s", porta)
 
-        # empacotado não tem iniciar.bat: o próprio app abre a interface - exceto
+        # empacotado não tem script de inicialização: o próprio app abre a interface - exceto
         # quando quem subiu o backend foi o shell de desktop (Electron), que tem
         # janela própria e seta PROSPECTOS_NO_BROWSER=1
         if paths.EMPACOTADO and os.environ.get("PROSPECTOS_NO_BROWSER") != "1":

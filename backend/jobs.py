@@ -10,6 +10,7 @@ na fase 3).
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -209,7 +210,7 @@ def traduzir_erro_scraper(stderr, returncode):
             "instalado (veja o LEIA-ME.md) e tente novamente."
         )
     if "no such file" in texto or "not found" in texto:
-        return "O programa google-maps-scraper.exe não foi encontrado na pasta do projeto."
+        return f"O programa {nome_executavel_scraper()} não foi encontrado na pasta do projeto."
     if "deadline exceeded" in texto or "timeout" in texto:
         return "A busca no Google Maps demorou demais e foi interrompida. Tente de novo."
 
@@ -308,11 +309,38 @@ def zoom_para_raio(raio_m):
     return max(8, min(17, round(15 - math.log2(max(raio_m, 500) / 1000))))
 
 
+def nome_executavel_scraper():
+    """Nome do binário local do gosom/google-maps-scraper para a plataforma atual."""
+    return "google-maps-scraper.exe" if sys.platform.startswith("win") else "google-maps-scraper"
+
+
+def caminho_executavel_scraper():
+    return caminho_recurso(nome_executavel_scraper())
+
+
+def caminho_node_padrao(ambiente):
+    """Resolve o Node usado pelo Playwright do scraper sem assumir Windows.
+
+    Ordem: configuração salva → variável de ambiente → Node portátil empacotado
+    → node do PATH → fallback clássico do Windows.
+    """
+    nome_node_embutido = "node.exe" if sys.platform.startswith("win") else "node"
+    node_embutido = caminho_recurso("node", nome_node_embutido)
+    node_no_path = shutil.which("node")
+    return (
+        db.obter_config("node_path")
+        or ambiente.get("PLAYWRIGHT_NODEJS_PATH")
+        or (str(node_embutido) if node_embutido.exists() else None)
+        or node_no_path
+        or (r"C:\Program Files\nodejs\node.exe" if sys.platform.startswith("win") else None)
+    )
+
+
 def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
     """Roda o binário do scraper uma vez, com progresso ao vivo.
     Retorna None em sucesso, ou a mensagem de erro amigável em falha."""
     comando_scraper = [
-        str(caminho_recurso("google-maps-scraper.exe")),
+        str(caminho_executavel_scraper()),
         "-input", str(DIR_DADOS / "queries.txt"),
         "-results", str(arquivo_bruto),
         "-lang", "pt",
@@ -342,8 +370,8 @@ def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
             "ou confira sua conexão com a internet."
         )
     except FileNotFoundError:
-        logger.exception("google-maps-scraper.exe não encontrado")
-        return "O programa google-maps-scraper.exe não foi encontrado na pasta do projeto."
+        logger.exception("%s não encontrado", nome_executavel_scraper())
+        return f"O programa {nome_executavel_scraper()} não foi encontrado na pasta do projeto."
 
     if returncode != 0:
         logger.error("scraper falhou (código %s). stderr: %s", returncode, stderr_completo[-2000:])
@@ -520,16 +548,12 @@ def _rodar_busca_em_background(areas=None):
 
         # caminho do Node usado pelo Playwright embutido no scraper: pode vir da
         # tabela configuracoes (chave "node_path"), da variável de ambiente, do
-        # Node portátil distribuído junto com o app empacotado, ou cai no local
-        # padrão de instalação do Windows
-        node_embutido = caminho_recurso("node", "node.exe")
+        # Node portátil distribuído junto com o app empacotado, do PATH ou do local
+        # padrão de instalação do Windows.
         ambiente = os.environ.copy()
-        ambiente["PLAYWRIGHT_NODEJS_PATH"] = (
-            db.obter_config("node_path")
-            or ambiente.get("PLAYWRIGHT_NODEJS_PATH")
-            or (str(node_embutido) if node_embutido.exists() else None)
-            or r"C:\Program Files\nodejs\node.exe"
-        )
+        node_padrao = caminho_node_padrao(ambiente)
+        if node_padrao:
+            ambiente["PLAYWRIGHT_NODEJS_PATH"] = node_padrao
 
         if areas:
             contagens = _buscar_por_areas(areas, ambiente, data)
