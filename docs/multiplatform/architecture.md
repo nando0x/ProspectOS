@@ -189,72 +189,14 @@ Motor de background com persistência em tabela `jobs`:
 
 ---
 
-## 3. Arquitetura alvo (ao final da iniciativa)
+## 3. Melhorias futuras desejáveis (fora do escopo atual)
 
-```mermaid
-flowchart TD
-    Electron["Electron<br/>(assinado + notarizado)"]
-    RM["RuntimeManifest"]
-    PP["PlatformPaths"]
-    BP["Backend PyInstaller<br/>(assinado)"]
-    PRM["PlaywrightRuntimeManager"]
-    SPR["ScraperProcessRunner"]
-    SC["google-maps-scraper<br/>(assinado)"]
-    PW["Playwright Runtime<br/>(Node + Chromium assinados)"]
-    KR["keyring macOS Keychain"]
-    FE["Frontend React"]
+Melhorias que não são necessárias para o build local funcional, mas seriam
+desejáveis em uma evolução futura:
 
-    subgraph Build
-        CI["CI/CD Matrix<br/>(macOS + Windows + Linux)"]
-        BA["Build arm64<br/>scripts/build_desktop.py"]
-        BX["Build x64<br/>scripts/"]
-    end
-
-    subgraph Distribuicao
-        DMG["DMG (macOS)"]
-        NSIS["NSIS Installer (Windows)"]
-        APPIMAGE["AppImage (Linux)"]
-        GH["GitHub Releases<br/>+ electron-updater"]
-    end
-
-    subgraph QA
-        SMOKE["Smoke Tests"]
-        E2E["E2E Electron"]
-        REGRESSION["Regressão Windows"]
-        VALIDATE["Validação runtime"]
-    end
-
-    Electron --> RM
-    Electron --> PP
-    Electron --> BP
-    BP --> PRM
-    BP --> SPR
-    SPR --> SC
-    SPR --> PRM
-    PRM --> PW
-    BP --> KR
-    BP --> FE
-
-    CI --> BA
-    CI --> BX
-    BA --> DMG
-    BX --> NSIS
-    BX --> APPIMAGE
-    DMG --> GH
-    NSIS --> GH
-    APPIMAGE --> GH
-
-    SMOKE --> DMG
-    E2E --> DMG
-    REGRESSION --> NSIS
-    VALIDATE --> PW
-```
-
-**Mudanças em relação à arquitetura atual:**
 - CI/CD matrix automatizando builds para 3 plataformas
-- Assinatura e notarização completas
-- Distribuição via GitHub Releases + electron-updater
-- DMG, NSIS Installer e AppImage como artefatos
-- Smoke + E2E + regressão Windows como gates de qualidade
-- Sem bifurcação de fluxo (todo target usa ScraperProcessRunner)
-- Node.js do sistema eliminado como dependência
+- DMG, NSIS Installer e AppImage como artefatos de distribuição
+- Smoke + E2E + regressão Windows como gates de qualidade automatizados
+- Eliminar bifurcação de fluxo (todo target usando ScraperProcessRunner)
+- Node.js do sistema completamente eliminado como dependência
+- ProcessSupervisor centralizado

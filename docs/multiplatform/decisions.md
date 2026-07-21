@@ -231,25 +231,25 @@ individual possível. Atualização de sidecars sem trocar app.asar inteiro.
 
 ## ADR-012 — Distribuição pública exige assinatura e notarização
 
-**Status:** ACEITA (decisão de engenharia, implementação pendente)
+**Status:** FORA DE ESCOPO (escopo atual é apenas build e execução local)
 
-**Contexto:** macOS bloqueia aplicativos não assinados via Gatekeeper.
-Distribuição fora da App Store exige Developer ID + notarização.
+**Contexto:** A auditoria original identificou que distribuição pública exigiria
+Apple Developer Program, Developer ID, Hardened Runtime, notarização e DMG.
+Isso não faz parte do escopo atual da iniciativa.
 
 **Decisão:** Build local não exige assinatura (`CSC_IDENTITY_AUTO_DISCOVERY=false`).
-Distribuição pública exige:
-1. Apple Developer Program ($99/ano)
-2. Developer ID Application certificate
-3. Hardened Runtime + entitlements
-4. Assinatura de todos os executáveis internos
-5. Notarização + stapling
-6. DMG
+Distribuição pública é postergada para decisão futura.
 
-**Consequências:** Builds locais funcionam sem custo. Distribuição pública tem
-custo anual e processo burocrático.
+**Alternativas rejeitadas:** N/A — não é uma decisão ativa.
 
-**Evidências:** `scripts/build_desktop.py:345` usa `CSC_IDENTITY_AUTO_DISCOVERY=false`,
-documentado na auditoria original.
+**Consequências:** Builds locais funcionam sem custo. `.app` não assinado abre
+com aviso no Gatekeeper (contornável com `xattr -dr` no Mac do desenvolvedor).
+
+**Evidências:** `scripts/build_desktop.py:345` usa `CSC_IDENTITY_AUTO_DISCOVERY=false`.
+
+---
+
+## ADR-013 — Leitura de progresso do scraper via stderr
 
 ---
 

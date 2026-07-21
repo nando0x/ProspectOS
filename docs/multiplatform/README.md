@@ -8,7 +8,10 @@ um scraper Go (Google Maps via Playwright) e o runtime Playwright (Node + Chromi
 
 Originalmente Windows-only, esta iniciativa adapta o ProspectOS para executar
 nativamente em **macOS Apple Silicon (darwin-arm64)**, preservando a compatibilidade
-com Windows e preparando o terreno para Linux e Mac Intel.
+com Windows e preparando a arquitetura para Linux no futuro.
+
+**Escopo:** build e execução local no Mac do desenvolvedor. Não inclui distribuição
+pública, assinatura, notarização ou Mac Intel neste momento.
 
 **Validado em:** 2026-07-20 — MacBook Apple M4, macOS 26.4, Python 3.14.5,
 Node 22.22.2, Electron 38.2.0.
@@ -81,18 +84,13 @@ flowchart TD
 
 | Campo | Valor |
 |---|---|
-| **Status** | **REVERTIDO (quebrado)** |
+| **Status** | **BLOQUEADO** — commit `42c9040` foi revertido no HEAD |
 | Commit | `42c9040` (original, requests 2.32.3 -> 2.34.2) |
 | Arquivo | `backend/requirements.txt` |
 | Evidência | `git diff 42c9040 HEAD -- backend/requirements.txt` confirma reversão |
+| Validação | `pip install -r requirements.txt` em venv vazio: **ResolutionImpossible** |
 | Risco | `instagrapi 2.18.3` exige `requests>=2.34.2`, pin atual `2.32.3` é impossível de resolver |
 | Ação | Reaplicar bump para `requests==2.34.2` |
-
-O PR 0 foi criado no commit `42c9040` e posteriormente revertido. O arquivo
-atual em `HEAD` contém `requests==2.32.3`, que conflita com `instagrapi==2.18.3`
-(requer `>=2.34.2`). `pip install -r requirements.txt` falha.
-
-**Gate relacionado:** `docs/gates/GATE1_RUNTIME_M4.md` — blocante P1 confirmado.
 
 ### PR/Fase 1 — PlatformPaths
 
@@ -128,9 +126,9 @@ atual em `HEAD` contém `requests==2.32.3`, que conflita com `instagrapi==2.18.3
 
 **Targets canônicos:**
 - `darwin-arm64` (Apple Silicon)
-- `darwin-x64` (Intel Mac)
+- `darwin-x64` (Intel Mac) — contrato apenas, sem build ou testes
 - `win32-x64` (Windows)
-- `linux-x64` (Linux)
+- `linux-x64` (Linux) — contrato apenas, sem build ou testes
 
 **Schema manifesto:**
 ```json
@@ -152,10 +150,10 @@ atual em `HEAD` contém `requests==2.32.3`, que conflita com `instagrapi==2.18.3
 | **Status** | **COMPLETO** |
 | Commit | `dc0a9ce` |
 | Arquivos | 22 novos, 4058 linhas adicionadas |
-| Evidência | 8 módulos Python, CLI técnica, 160+ testes unitários, smoke real |
+| Evidência | 8 módulos Python, CLI técnica, 160+ testes unitários |
 
 **Componentes:**
-- `download.py` — download com checksums e retry
+- `downloader.py` — download com checksums e retry
 - `errors.py` — 12+ tipos de erro específicos
 - `extractor.py` — extração segura de `.tgz`
 - `lock.py` — lock atômico via sistema de arquivos
@@ -164,8 +162,9 @@ atual em `HEAD` contém `requests==2.32.3`, que conflita com `instagrapi==2.18.3
 - `models.py` — dataclasses de estado
 - `validator.py` — validação de integridade
 
-**Licenças:** playwright-core (Apache 2.0), Node.js (MIT), Chromium (BSD),
-FFmpeg (LGPL 2.1).
+**Limitação:** spec só tem runtime para `darwin-arm64`. `darwin-x64` e `linux-x64`
+não possuem entrada em `playwright-runtime-targets.json`, portanto o
+`PlaywrightRuntimeManager` lança `UnsupportedTargetError` para esses targets.
 
 ### PR/Fase 4 — Integração do scraper
 
@@ -177,20 +176,18 @@ FFmpeg (LGPL 2.1).
 | Evidência | 1195 linhas adicionadas, smoke real darwin-arm64 |
 
 **Detalhes:**
-- `ScraperProcessRunner`: lê stdout+stderr concorrentemente, progresso via
-  callbacks, timeout, SIGTERM com grace period, SIGKILL como fallback
+- `ScraperProcessRunner`: lê stdout+stderr concorrentemente, progresso via callbacks,
+  timeout, SIGTERM com grace period, SIGKILL como fallback
 - `scraper_runtime.py`: bridge que resolve scraper + prepara runtime Playwright
 - Leitura de progresso do **stderr** (compatível com scraper v1.16.3)
-- Atualmente condicionado a `darwin-arm64`; outros targets usam fluxo legado
-- Gate 1B (`docs/gates/GATE1B_REPORT.md`) validou scraper arm64 nativo
 
 ### PR/Fase 5 — Backend PyInstaller macOS
 
 | Campo | Valor |
 |---|---|
-| **Status** | **COMPLETO** |
+| **Status** | **PARCIAL** — artefato histórico existe, mas não reproduzível do HEAD |
 | Commit | `c2e1e12` |
-| Artefato | `backend/dist/ProspectOS/` (95 MB, 262 arquivos) |
+| Artefato | `backend/dist/ProspectOS/` (95 MB, 262 arquivos) — Mach-O arm64 |
 | Evidência | Mach-O 64-bit executable arm64, sem dependências Homebrew |
 
 **Spec:** `--onedir`, platform-conditional hidden imports, frontend/dist incluído,
@@ -203,10 +200,10 @@ manifesto runtime incluído, keyring macOS incluso.
 
 | Campo | Valor |
 |---|---|
-| **Status** | **COMPLETO** (build local, sem assinatura) |
+| **Status** | **PARCIAL** — artefato histórico existe, mas não reproduzível do HEAD |
 | Commit | `c254a83` |
 | Artefato | `desktop/saida/mac-arm64/ProspectOS.app` |
-| Evidência | Todos 3 executáveis são Mach-O arm64 |
+| Evidência | Todos 3 executáveis são Mach-O arm64, mas smoke real nunca foi executado |
 
 **Artefato verificado:**
 - `ProspectOS.app/Contents/MacOS/ProspectOS` — Mach-O 64-bit executable arm64
@@ -214,18 +211,8 @@ manifesto runtime incluído, keyring macOS incluso.
 - `Resources/scraper/google-maps-scraper` — Mach-O 64-bit executable arm64
 - `Resources/shared/runtime-targets.json` — presente
 - `Resources/shared/playwright-runtime-targets.json` — presente
-- `Resources/icon.icns` — presente
-- `Resources/app.asar` — presente
 
 **Script:** `scripts/build_desktop.py` — orquestrador completo (7 passos).
-
-### Notarização e assinatura
-
-| Campo | Valor |
-|---|---|
-| **Status** | **PENDENTE** |
-| Evidência | Build usa `CSC_IDENTITY_AUTO_DISCOVERY=false` |
-| Necessário | Apple Developer Program ($99/ano), Developer ID, Hardened Runtime |
 
 ---
 
@@ -233,15 +220,15 @@ manifesto runtime incluído, keyring macOS incluso.
 
 | Item | Planejado | Implementado | Evidência | Ação |
 |---|---|---|---|---|
-| **PR 0** requests bump | `2.34.2` | `2.32.3` (revertido) | `git diff 42c9040 HEAD` | Reaplicar bump |
+| **CORE-001** requests bump | `2.34.2` | `2.32.3` (revertido) | `git diff 42c9040 HEAD`, `pip install` falha | Reaplicar bump |
+| **MAC-001/002** builds | Reproduzível do HEAD | Artefato histórico apenas | `pip install` quebra antes de buildar | Corrigir CORE-001 primeiro |
 | **Scraper arm64** | Binário no bundle | Compilado e incluso | `file` no .app | OK |
 | **Playwright Runtime** | Download gerenciado | `PlaywrightRuntimeManager` | 160+ testes | OK |
-| **Windows build** | Preservado | Config estática, sem build real | `electron-builder.yml` win target | Testar no Windows |
-| **Linux build** | Target no manifesto | Só contrato JSON | `runtime-targets.json` | Sem build, sem testes |
-| **darwin-x64** | Target no manifesto | Só contrato JSON | Mesmo manifesto | Sem build, sem testes |
-| **Notarização** | DMG distribuível | Nada implementado | Apenas plano na auditoria | Pendente |
-| **CI/CD** | Workflows | Nenhum workflow | `find .github -name '*.yml'` vazio | Pendente |
-| **Keyring macOS smoke** | Validado em /tmp | Validado em Gate 1 | GATE1_RUNTIME_M4.md | Repetir em .app assinado |
+| **darwin-x64** | Target no manifesto | Só contrato JSON | `runtime-targets.json` | FORA DE ESCOPO agora |
+| **linux-x64** | Target no manifesto | Só contrato JSON | `runtime-targets.json` | FORA DE ESCOPO agora |
+| **Windows build** | Preservado | Config estática, sem build real | `electron-builder.yml` win target | Pendente (Fase 3) |
+| **Distribuição pública** | DMG, assinatura, notarização | Nada implementado | Auditoria original | FORA DE ESCOPO agora |
+| **Keyring macOS smoke** | Validado em /tmp | Gate 1 comprovou | GATE1_RUNTIME_M4.md | Repetir no .app |
 | **Frontend docs** | Texto dinâmico | Ainda cita `.exe` | `FaqDoc.tsx`, `GoogleMapsDoc.tsx` | Atualizar |
 
 ---
@@ -251,11 +238,11 @@ manifesto runtime incluído, keyring macOS incluso.
 ### Dependências
 
 ```bash
-# Backend
+# Backend (BLOQUEADO — reque CORE-001 resolvido primeiro)
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip setuptools wheel
-pip install -r backend/requirements.txt  # FALHA: requests 2.32.3 conflita com instagrapi
+pip install -r backend/requirements.txt  # FALHA: ResolutionImpossible
 
 # Frontend
 cd frontend && npm ci
@@ -310,21 +297,20 @@ python -m backend.tools.playwright_runtime_cli validate --full
 
 ## Riscos
 
-### Arquitetura
-- `requirements.txt` quebrado impede instalação limpa — P0
+### Crítico (P0)
+- `requirements.txt` quebrado impede instalação, desenvolvimento e CI
 - Condicional `target == "darwin-arm64"` em `jobs.py` cria bifurcação de fluxo
-- Node.js do sistema ainda referenciado em manifestos (não usado, mas confunde)
+- Nenhum workflow CI — todos os builds e testes são manuais
 
 ### macOS
-- Build sem assinatura — não passa no Gatekeeper
-- Apple Developer Program obrigatório ($99/ano)
-- Hardened Runtime + entitlements precisam ser mapeados
-- Chromium + Node + scraper precisam ser assinados ou exemptados
-- Notarização nunca foi testada
+- `.app` nunca foi executado como aplicativo — só validado estaticamente
+- Runtime Playwright nunca foi testado dentro do `.app` empacotado
+- Keychain em bundle PyInstaller nunca foi testado (só em `/tmp`)
+- Node.js do sistema referenciado em manifestos (não usado, mas confunde)
+- Nenhum teste de isolamento (sem Python/Node/Go no PATH)
 
 ### Windows
 - Build Windows não foi executado desde as mudanças de paths/manifest
-- `electron-builder.yml` ainda tem target NSIS
 - Scripts `.bat` e `.ps1` obsoletos para o novo fluxo
 - Dados existentes em `%APPDATA%\ProspectOS` precisam manter compatibilidade
 
@@ -333,65 +319,41 @@ python -m backend.tools.playwright_runtime_cli validate --full
 - `keyring.backends.SecretService` no spec mas nunca testado
 - Sem build, sem smoke, sem suporte real
 
-### Distribuição
-- `electron-updater` configurado para GitHub Releases, mas nunca testado no macOS
-- DMG não gerado (build usa `--mac dir`)
-- Sem SBOM, sem checksums públicos, sem canal de atualização
-
 ---
 
 ## Próximas ações imediatas
 
-### 1. Reaplicar bump do requests (P0)
+### 1. Verificar CORE-001 (P0)
+
+**Objetivo:** Confirmar se `requests==2.34.2` está no HEAD e `pip install` funciona.
+**Por que agora:** Todos os builds Python dependem disso. Sem isso, nada reproduzível.
+**Validação em 2026-07-20:** `pip install` falha — CORE-016 está BLOQUEADO.
+
+### 2. Reaplicar bump do requests (P0)
 
 **Objetivo:** `pip install -r requirements.txt` funciona novamente.
-**Por que agora:** Impede qualquer instalação limpa, desenvolvimento, testes e CI.
-**Pré-condições:** Nenhuma.
-**Entrega:** Commit alterando `requests==2.32.3` para `requests==2.34.2` em
-`backend/requirements.txt`.
-**Critério de aceite:** `pip install -r requirements.txt` exit 0, `pip check`
-sem quebras, `python -m pytest` 293+ passando.
+**Entrega:** `requests==2.32.3` → `requests==2.34.2` em `backend/requirements.txt`.
+**Critério de aceite:** `pip install -r requirements.txt` exit 0, `pip check` sem quebras,
+`python -m pytest` passando.
 
-### 2. Validar smoke do .app (P1)
+### 3. Executar smoke completo do `.app` (P0)
 
-**Objetivo:** Confirmar que o `.app` existente abre, backend sobe, frontend carrega.
-**Por que agora:** O build do Electron (.app) foi gerado mas nunca foi executado
-como aplicativo — só validado estaticamente (file/lipo).
-**Pré-condições:** requests corrigido (ação 1).
-**Entrega:** Relatório de smoke test: app abre, frontend carrega, scraper executa,
-Instagram loga, PDF gera, encerramento sem órfãos.
-**Critério de aceite:** Checklist completo (ver `docs/multiplatform/roadmap.md`
-seção Release macOS).
+**Objetivo:** Confirmar que o `.app` abre, backend sobe, frontend carrega, scraper executa.
+**Pré-condições:** CORE-001 resolvido (ação 2).
+**Entrega:** Checklist macOS local completo preenchido.
+**Critério de aceite:** Todos os itens do checklist local (ver roadmap.md) atendidos.
 
-### 3. Assinar sidecars internos (P1)
+### 4. Corrigir falhas do lifecycle (P1)
 
-**Objetivo:** Assinar backend PyInstaller, scraper Go, Node e Chromium com
-Developer ID Application.
-**Por que agora:** Sem assinatura individual, o Hardened Runtime bloqueia
-subprocessos.
-**Pré-condições:** Apple Developer Program ativo.
-**Entrega:** Script de assinatura para todos os executáveis em
-`Resources/backend/`, `Resources/scraper/` e runtime Playwright.
-**Critério de aceite:** `codesign -dv` em cada executável mostra equipe
-válida e permissões corretas.
+**Objetivo:** Command+Q, segunda instância, crash recovery, sem processos órfãos.
+**Pré-condições:** Smoke (ação 3) revela falhas.
+**Entrega:** Lifecycle validado e documentado.
 
-### 4. Preparar notarização (P2)
+### 5. Executar regressão Windows (P1)
 
-**Objetivo:** Enviar .app para notarização da Apple e stapling.
-**Por que agora:** Único caminho para distribuição pública sem aviso do Gatekeeper.
-**Pré-condições:** Assinatura completa (ação 3), Developer ID Application,
-App-specific password.
-**Entrega:** `.app` notarizado + stapled + DMG.
-**Critério de aceite:** `spctl --assess --verbose --type execute` passa.
-
-### 5. Executar regressão Windows (P2)
-
-**Objetivo:** Confirmar que mudanças multiplataforma não quebraram Windows.
-**Por que agora:** Windows é a plataforma original de produção.
-**Pré-condições:** Ação 1 concluída.
-**Entrega:** Build Windows + smoke test + suite de testes passando.
-**Critério de aceite:** Testes passam, scraper executa, leads persistem,
-keyring funciona, upgrade de instalação existente preserva dados.
+**Objetivo:** Confirmar que mudanças não quebraram Windows.
+**Pré-condições:** CORE-001 resolvido.
+**Entrega:** Build Windows + smoke + testes passando.
 
 ---
 
