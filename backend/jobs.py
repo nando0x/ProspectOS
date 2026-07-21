@@ -20,7 +20,8 @@ from pathlib import Path
 import db
 import ia
 import processar
-from paths import DIR_DADOS, DIR_RECURSOS, caminho_recurso
+import runtime_targets
+from paths import DIR_DADOS, DIR_RECURSOS
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +210,7 @@ def traduzir_erro_scraper(stderr, returncode):
             "instalado (veja o LEIA-ME.md) e tente novamente."
         )
     if "no such file" in texto or "not found" in texto:
-        return "O programa google-maps-scraper.exe não foi encontrado na pasta do projeto."
+        return "O programa google-maps-scraper não foi encontrado na pasta do projeto."
     if "deadline exceeded" in texto or "timeout" in texto:
         return "A busca no Google Maps demorou demais e foi interrompida. Tente de novo."
 
@@ -311,8 +312,15 @@ def zoom_para_raio(raio_m):
 def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
     """Roda o binário do scraper uma vez, com progresso ao vivo.
     Retorna None em sucesso, ou a mensagem de erro amigável em falha."""
+    try:
+        scraper_path = runtime_targets.resolve_scraper()
+        runtime_targets.validate_executable(scraper_path, "Scraper do Google Maps")
+    except Exception as exc:
+        logger.exception("scraper não disponível")
+        return str(exc)
+
     comando_scraper = [
-        str(caminho_recurso("google-maps-scraper.exe")),
+        str(scraper_path),
         "-input", str(DIR_DADOS / "queries.txt"),
         "-results", str(arquivo_bruto),
         "-lang", "pt",
@@ -342,8 +350,8 @@ def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
             "ou confira sua conexão com a internet."
         )
     except FileNotFoundError:
-        logger.exception("google-maps-scraper.exe não encontrado")
-        return "O programa google-maps-scraper.exe não foi encontrado na pasta do projeto."
+        logger.exception("scraper não encontrado")
+        return "O programa google-maps-scraper não foi encontrado na pasta do projeto."
 
     if returncode != 0:
         logger.error("scraper falhou (código %s). stderr: %s", returncode, stderr_completo[-2000:])
@@ -417,6 +425,11 @@ def _rodar_busca_em_background(areas=None):
     estado_busca["empresas_processadas"] = 0
     estado_busca["area_atual"] = 0
     estado_busca["total_areas"] = len(areas) if areas else 0
+    logger.info(
+        "runtime target: %s | scraper executable: %s",
+        runtime_targets.current_target(),
+        runtime_targets.resolve_scraper(),
+    )
     logger.info("busca iniciada (modo %s)", "mapa" if areas else "texto")
     _job_id_busca = _registrar_inicio_job("busca_maps")
     _atualizar_job(_job_id_busca, etapa="scraping", mensagem="Buscando no Google Maps...")
@@ -429,18 +442,7 @@ def _rodar_busca_em_background(areas=None):
         pasta_saidas = DIR_DADOS / "saidas"
         pasta_saidas.mkdir(parents=True, exist_ok=True)
 
-        # caminho do Node usado pelo Playwright embutido no scraper: pode vir da
-        # tabela configuracoes (chave "node_path"), da variável de ambiente, do
-        # Node portátil distribuído junto com o app empacotado, ou cai no local
-        # padrão de instalação do Windows
-        node_embutido = caminho_recurso("node", "node.exe")
         ambiente = os.environ.copy()
-        ambiente["PLAYWRIGHT_NODEJS_PATH"] = (
-            db.obter_config("node_path")
-            or ambiente.get("PLAYWRIGHT_NODEJS_PATH")
-            or (str(node_embutido) if node_embutido.exists() else None)
-            or r"C:\Program Files\nodejs\node.exe"
-        )
 
         if areas:
             contagens = _buscar_por_areas(areas, ambiente, data)

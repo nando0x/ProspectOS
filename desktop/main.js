@@ -18,6 +18,12 @@ const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
+const {
+  resolveRuntimeTarget,
+  validateExecutable,
+  loadRuntimeManifest,
+} = require("./runtime-target.js");
+
 let janela = null;
 let backend = null;
 let backendEncerradoDeProposito = false;
@@ -37,15 +43,19 @@ if (!primeiraInstancia) {
   });
 }
 
-function caminhoDoBackend() {
-  if (app.isPackaged) {
-    // empacotado: o bundle do PyInstaller vai junto como extraResource
-    const ext = process.platform === "win32" ? ".exe" : "";
-    return path.join(process.resourcesPath, "backend", `ProspectOS${ext}`);
-  }
-  // dev: usa o bundle buildado na pasta do projeto
-  const ext = process.platform === "win32" ? ".exe" : "";
-  return path.join(__dirname, "..", "backend", "dist", "ProspectOS", `ProspectOS${ext}`);
+function resolverBackend() {
+  const manifestPath = path.join(__dirname, "..", "shared", "runtime-targets.json");
+  const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(__dirname, "..");
+  const devRoot = path.join(__dirname, "..");
+
+  const result = resolveRuntimeTarget({
+    packaged: app.isPackaged,
+    manifestPath,
+    resourcesPath,
+    devRoot,
+  });
+
+  return result.backendPath;
 }
 
 function arquivoDaPorta() {
@@ -92,11 +102,29 @@ function resolverPaths() {
 /** Sobe o backend e resolve com a porta anunciada. */
 function subirBackend(pathsResolvidos) {
   return new Promise((resolver, rejeitar) => {
-    const exe = caminhoDoBackend();
-    if (!fs.existsSync(exe)) {
-      rejeitar(new Error(`Backend não encontrado em: ${exe}`));
+    const exe = resolverBackend();
+    const runtimeTarget = require("./runtime-target.js").getCurrentTarget();
+    const manifestPath = path.join(__dirname, "..", "shared", "runtime-targets.json");
+
+    try {
+      validateExecutable(exe, "Backend do ProspectOS");
+    } catch (err) {
+      rejeitar(
+        new Error(
+          `Backend não encontrado para ${runtimeTarget}:\n${exe}\n\n` +
+          `Verifique se o backend foi compilado (modo desenvolvimento) ou ` +
+          `se a instalação está íntegra (modo empacotado).\n` +
+          `Target: ${runtimeTarget}\nManifesto: ${manifestPath}`
+        )
+      );
       return;
     }
+
+    console.log(
+      `runtime target: ${runtimeTarget}\n` +
+      `backend executable: ${exe}\n` +
+      `runtime manifest: ${manifestPath}`
+    );
 
     // apaga o porta.txt velho pra não ler porta de uma execução anterior
     try {
@@ -113,6 +141,8 @@ function subirBackend(pathsResolvidos) {
         PROSPECTOS_LOG_DIR: pathsResolvidos.PROSPECTOS_LOG_DIR,
         PROSPECTOS_TEMP_DIR: pathsResolvidos.PROSPECTOS_TEMP_DIR,
         PROSPECTOS_RESOURCE_DIR: pathsResolvidos.PROSPECTOS_RESOURCE_DIR,
+        PROSPECTOS_RUNTIME_MANIFEST: manifestPath,
+        PROSPECTOS_RUNTIME_TARGET: runtimeTarget,
       },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,

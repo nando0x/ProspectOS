@@ -10,7 +10,8 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win --publish never",
-    "publicar": "electron-builder --win --publish always"
+    "publicar": "electron-builder --win --publish always",
+    "test": "node --test tests/test-runtime-target.cjs"
   },
   "devDependencies": {
     "electron": "38.2.0",

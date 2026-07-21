@@ -76,7 +76,7 @@ class TestTraduzirErroScraper:
 
     def test_arquivo_nao_encontrado(self):
         msg = jobs.traduzir_erro_scraper("no such file or directory", 127)
-        assert "google-maps-scraper.exe" in msg
+        assert "google-maps-scraper" in msg
 
     def test_timeout_deadline(self):
         msg = jobs.traduzir_erro_scraper("context deadline exceeded", 1)
