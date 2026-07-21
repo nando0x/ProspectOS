@@ -46,6 +46,18 @@ def _abs(caminho: str | Path) -> Path:
 
 # ── defaults por plataforma ───────────────────────────────────────────────
 
+def _default_cache_dir() -> Path:
+    if sys.platform == "win32":
+        local_app_data = _val("LOCALAPPDATA")
+        return _abs(Path(local_app_data or "~") / "ProspectOS" / "cache")
+    if sys.platform == "darwin":
+        return _abs(Path.home() / "Library" / "Caches" / "ProspectOS")
+    xdg = _val("XDG_CACHE_HOME")
+    if xdg:
+        return _abs(Path(xdg) / "ProspectOS")
+    return _abs(Path.home() / ".cache" / "ProspectOS")
+
+
 def _default_data_dir() -> Path:
     if sys.platform == "win32":
         base = _val("APPDATA")
@@ -86,6 +98,7 @@ DIR_DADOS: Path = _abs(_val("PROSPECTOS_DATA_DIR") or _default_data_dir())
 DIR_LOGS: Path = _abs(_val("PROSPECTOS_LOG_DIR") or _default_log_dir())
 DIR_TEMP: Path = _abs(_val("PROSPECTOS_TEMP_DIR") or _default_temp_dir())
 DIR_RECURSOS: Path = _abs(_val("PROSPECTOS_RESOURCE_DIR") or _default_resource_dir())
+DIR_CACHE: Path = _abs(_val("PROSPECTOS_CACHE_DIR") or _default_cache_dir())
 
 
 # ── helpers públicos ──────────────────────────────────────────────────────

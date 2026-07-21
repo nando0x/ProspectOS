@@ -375,6 +375,52 @@ class TestCaminhoBanco:
         assert expected == paths.caminho_dados("instagram", "comentarios")
 
 
+# ── DIR_CACHE ────────────────────────────────────────────────────────────
+
+class TestDirCache:
+    def test_default_cache_dir_macos(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "darwin")
+        _limpar_envs("PROSPECTOS_CACHE_DIR", monkeypatch=monkeypatch)
+        _recarregar()
+        esperado = Path.home() / "Library" / "Caches" / "ProspectOS"
+        assert paths.DIR_CACHE == esperado.absolute()
+
+    def test_default_cache_dir_windows(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.setenv("LOCALAPPDATA", "/Users/Test/AppData/Local")
+        _limpar_envs("PROSPECTOS_CACHE_DIR", monkeypatch=monkeypatch)
+        _recarregar()
+        esperado = Path("/Users/Test/AppData/Local/ProspectOS/cache")
+        assert paths.DIR_CACHE == esperado
+
+    def test_default_cache_dir_linux_xdg(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setenv("XDG_CACHE_HOME", "/home/test/.cache")
+        _limpar_envs("PROSPECTOS_CACHE_DIR", monkeypatch=monkeypatch)
+        _recarregar()
+        esperado = Path("/home/test/.cache/ProspectOS")
+        assert paths.DIR_CACHE == esperado
+
+    def test_default_cache_dir_linux_fallback(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "linux")
+        _limpar_envs("PROSPECTOS_CACHE_DIR", "XDG_CACHE_HOME", monkeypatch=monkeypatch)
+        _recarregar()
+        assert paths.DIR_CACHE.name == "ProspectOS"
+        assert "ProspectOS" in str(paths.DIR_CACHE)
+
+    def test_cache_dir_env_var_vence_default(self, monkeypatch):
+        monkeypatch.setenv("PROSPECTOS_CACHE_DIR", "/tmp/custom-cache")
+        _recarregar()
+        assert paths.DIR_CACHE == Path("/tmp/custom-cache").absolute()
+
+    def test_cache_dir_independente_dos_demais(self, monkeypatch):
+        monkeypatch.setenv("PROSPECTOS_CACHE_DIR", "/tmp/cache-only")
+        monkeypatch.setenv("PROSPECTOS_DATA_DIR", "/tmp/data-only")
+        _recarregar()
+        assert paths.DIR_CACHE == Path("/tmp/cache-only").absolute()
+        assert paths.DIR_DADOS == Path("/tmp/data-only").absolute()
+
+
 # ── Limpeza entre os testes ──────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
