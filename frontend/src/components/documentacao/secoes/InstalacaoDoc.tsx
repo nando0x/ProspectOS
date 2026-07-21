@@ -52,6 +52,12 @@ export function InstalacaoDoc() {
           buscas no Maps falham.
         </li>
         <li>
+          Se no macOS o scraper falhar ao baixar o driver do Playwright Go,
+          instale um driver local em{" "}
+          <DocCode>backend/.playwright-driver/package/cli.js</DocCode>. O
+          backend detecta essa pasta automaticamente.
+        </li>
+        <li>
           Rode com <DocCode>py app.py</DocCode> no Windows ou{" "}
           <DocCode>python3.11 app.py</DocCode> no macOS/Linux —{" "}
           <DocCode>http://localhost:5000</DocCode>.

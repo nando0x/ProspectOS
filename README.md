@@ -176,7 +176,20 @@ cp google-maps-scraper /caminho/para/ProspectOS/backend/google-maps-scraper
 chmod +x /caminho/para/ProspectOS/backend/google-maps-scraper
 ```
 
-Para conferir se deu certo, a pasta `backend/` deve conter, lado a lado: `app.py`, `processar.py` e o binário da sua plataforma (`google-maps-scraper.exe` no Windows ou `google-maps-scraper` no macOS/Linux).
+Se no macOS o scraper falhar ao baixar o driver do Playwright Go com erro `404 Not Found`, crie um driver local com o pacote npm do Playwright. O backend detecta automaticamente `backend/.playwright-driver/package/cli.js`:
+
+```bash
+cd /caminho/para/ProspectOS/backend
+rm -rf .playwright-driver
+mkdir -p .playwright-driver/npm
+cd .playwright-driver/npm
+npm init -y
+npm install playwright@1.52.0 --ignore-scripts
+cd ..
+ln -s npm/node_modules/playwright package
+```
+
+Para conferir se deu certo, a pasta `backend/` deve conter, lado a lado: `app.py`, `processar.py` e o binário da sua plataforma (`google-maps-scraper.exe` no Windows ou `google-maps-scraper` no macOS/Linux). No workaround do Playwright, `backend/.playwright-driver/package/cli.js` também deve existir.
 
 > ✅ **Como saber se funcionou:** ao clicar em "Nova busca" no canal Google Maps do ProspectOS, a busca deve iniciar normalmente. Se aparecer um erro dizendo que o programa não foi encontrado, revise o nome do arquivo e o local onde ele está.
 >

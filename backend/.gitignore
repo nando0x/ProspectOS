@@ -6,6 +6,7 @@ saidas/
 __pycache__/
 *.pyc
 .venv/
+.playwright-driver/
 logs/
 *.log
 backups/

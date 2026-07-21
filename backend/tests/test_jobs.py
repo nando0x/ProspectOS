@@ -151,6 +151,20 @@ class TestPlataformaScraper:
         monkeypatch.setattr(jobs.shutil, "which", lambda _nome: None)
         assert jobs.caminho_node_padrao({}) == r"C:\Program Files\nodejs\node.exe"
 
+    def test_driver_playwright_respeita_variavel_de_ambiente(self):
+        assert jobs.caminho_driver_playwright_padrao({"PLAYWRIGHT_DRIVER_PATH": "/tmp/pw"}) == "/tmp/pw"
+
+    def test_driver_playwright_usa_pasta_local_quando_existe(self, tmp_path, monkeypatch):
+        driver = tmp_path / ".playwright-driver"
+        (driver / "package").mkdir(parents=True)
+        (driver / "package" / "cli.js").write_text("", encoding="utf-8")
+        monkeypatch.setattr(jobs, "caminho_recurso", lambda *partes: tmp_path.joinpath(*partes))
+        assert jobs.caminho_driver_playwright_padrao({}) == str(driver)
+
+    def test_driver_playwright_none_quando_nao_configurado(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(jobs, "caminho_recurso", lambda *partes: tmp_path.joinpath(*partes))
+        assert jobs.caminho_driver_playwright_padrao({}) is None
+
 
 # ---------------------------------------------------------------------------
 # _processar_linha_de_progresso_scraper — lê o stdout JSON e alimenta os contadores

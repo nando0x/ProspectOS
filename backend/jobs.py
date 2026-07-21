@@ -336,6 +336,23 @@ def caminho_node_padrao(ambiente):
     )
 
 
+def caminho_driver_playwright_padrao(ambiente):
+    """Resolve o driver do Playwright Go usado pelo scraper.
+
+    Normalmente o próprio scraper baixa esse driver. Em alguns ambientes macOS,
+    porém, o download do playwright-go aponta para uma URL quebrada. Para esse
+    caso, aceitamos um driver local em `.playwright-driver/package/cli.js`.
+    """
+    if ambiente.get("PLAYWRIGHT_DRIVER_PATH"):
+        return ambiente["PLAYWRIGHT_DRIVER_PATH"]
+
+    driver_local = caminho_recurso(".playwright-driver")
+    if (driver_local / "package" / "cli.js").exists():
+        return str(driver_local)
+
+    return None
+
+
 def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
     """Roda o binário do scraper uma vez, com progresso ao vivo.
     Retorna None em sucesso, ou a mensagem de erro amigável em falha."""
@@ -554,6 +571,9 @@ def _rodar_busca_em_background(areas=None):
         node_padrao = caminho_node_padrao(ambiente)
         if node_padrao:
             ambiente["PLAYWRIGHT_NODEJS_PATH"] = node_padrao
+        driver_playwright = caminho_driver_playwright_padrao(ambiente)
+        if driver_playwright:
+            ambiente["PLAYWRIGHT_DRIVER_PATH"] = driver_playwright
 
         if areas:
             contagens = _buscar_por_areas(areas, ambiente, data)
