@@ -1,2 +1,4 @@
 node_modules/
 saida/
+.runtime-resources/
+build/

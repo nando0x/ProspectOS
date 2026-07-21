@@ -1,36 +1,26 @@
-/**
- * Shell de desktop do ProspectOS.
- *
- * Papel deste processo:
- *  1. resolver os paths da aplicação via Electron (app.getPath);
- *  2. subir o backend empacotado (PyInstaller) como processo filho ("sidecar")
- *     passando os paths resolvidos nas variáveis PROSPECTOS_*;
- *  3. descobrir em que porta ele ficou (lê "LISTENING_ON=<porta>" do stdout,
- *     com fallback pro porta.txt em PROSPECTOS_DATA_DIR);
- *  4. abrir a janela apontando pra http://127.0.0.1:<porta>;
- *  5. encerrar o backend junto com a janela;
- *  6. auto-update via GitHub Releases (electron-updater) - baixa em segundo
- *     plano e instala no próximo fechamento do app.
- */
-
 const { app, BrowserWindow, dialog } = require("electron");
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const http = require("http");
 
 const {
   resolveRuntimeTarget,
   validateExecutable,
-  loadRuntimeManifest,
 } = require("./runtime-target.js");
 
 let janela = null;
 let backend = null;
 let backendEncerradoDeProposito = false;
+let limpando = null;
 let PROSPECTOS_DATA_DIR = null;
 let PROSPECTOS_LOG_DIR = null;
+let PROSPECTOS_RESOURCE_DIR = null;
 
-// só uma instância do app por vez (a segunda só foca a janela da primeira)
+const BACKEND_STARTUP_TIMEOUT_MS = 30_000;
+const BACKEND_SHUTDOWN_GRACE_MS = 10_000;
+const PROSPECTOS_TEMP_DIR = null;
+
 const primeiraInstancia = app.requestSingleInstanceLock();
 if (!primeiraInstancia) {
   app.quit();
@@ -43,35 +33,32 @@ if (!primeiraInstancia) {
   });
 }
 
+function manifestPath() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "shared", "runtime-targets.json")
+    : path.join(__dirname, "..", "shared", "runtime-targets.json");
+}
+
 function resolverBackend() {
-  const manifestPath = path.join(__dirname, "..", "shared", "runtime-targets.json");
-  const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(__dirname, "..");
-  const devRoot = path.join(__dirname, "..");
-
-  const result = resolveRuntimeTarget({
+  const runtime = resolveRuntimeTarget({
     packaged: app.isPackaged,
-    manifestPath,
-    resourcesPath,
-    devRoot,
+    manifestPath: manifestPath(),
+    resourcesPath: process.resourcesPath || path.join(__dirname, ".."),
+    devRoot: path.join(__dirname, ".."),
   });
-
-  return result.backendPath;
+  return runtime.backendPath;
 }
 
 function arquivoDaPorta() {
   return path.join(PROSPECTOS_DATA_DIR, "porta.txt");
 }
 
-/** Resolve paths do ProspectOS usando Electron como autoridade. */
 function resolverPaths() {
   PROSPECTOS_DATA_DIR = app.getPath("userData");
   PROSPECTOS_LOG_DIR = app.getPath("logs");
 
-  // Garantir que não haja duplicação do nome "ProspectOS"
-  // (app.getPath("userData") já termina em "ProspectOS" quando empacotado)
   const nomeBase = path.basename(PROSPECTOS_DATA_DIR);
   if (nomeBase !== "ProspectOS") {
-    // Em dev o app name pode ser "prospectos-desktop"; normaliza
     PROSPECTOS_DATA_DIR = path.join(path.dirname(PROSPECTOS_DATA_DIR), "ProspectOS");
     PROSPECTOS_LOG_DIR = path.join(
       process.platform === "darwin"
@@ -83,9 +70,8 @@ function resolverPaths() {
   }
 
   const PROSPECTOS_TEMP_DIR = path.join(app.getPath("temp"), "ProspectOS");
-  const PROSPECTOS_RESOURCE_DIR = process.resourcesPath || path.join(__dirname, "..");
+  PROSPECTOS_RESOURCE_DIR = process.resourcesPath || path.join(__dirname, "..");
 
-  // Cria diretórios antes do spawn
   try {
     fs.mkdirSync(PROSPECTOS_DATA_DIR, { recursive: true });
     fs.mkdirSync(PROSPECTOS_LOG_DIR, { recursive: true });
@@ -99,74 +85,94 @@ function resolverPaths() {
   return { PROSPECTOS_DATA_DIR, PROSPECTOS_LOG_DIR, PROSPECTOS_TEMP_DIR, PROSPECTOS_RESOURCE_DIR };
 }
 
-/** Sobe o backend e resolve com a porta anunciada. */
+function ambienteBackend(pathsResolvidos) {
+  const runtimeTarget = require("./runtime-target.js").getCurrentTarget();
+
+  return {
+    ...process.env,
+    PROSPECTOS_NO_BROWSER: "1",
+    PROSPECTOS_DATA_DIR: pathsResolvidos.PROSPECTOS_DATA_DIR,
+    PROSPECTOS_LOG_DIR: pathsResolvidos.PROSPECTOS_LOG_DIR,
+    PROSPECTOS_TEMP_DIR: pathsResolvidos.PROSPECTOS_TEMP_DIR,
+    PROSPECTOS_CACHE_DIR: path.join(app.getPath("cache"), "ProspectOS"),
+    PROSPECTOS_RESOURCE_DIR: pathsResolvidos.PROSPECTOS_RESOURCE_DIR,
+    PROSPECTOS_RUNTIME_MANIFEST: manifestPath(),
+    PROSPECTOS_PLAYWRIGHT_RUNTIME_MANIFEST: path.join(
+      path.dirname(manifestPath()),
+      "playwright-runtime-targets.json"
+    ),
+    PROSPECTOS_RUNTIME_TARGET: runtimeTarget,
+  };
+}
+
+function httpGet(url) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => resolve({ status: res.statusCode, body: data }));
+    });
+    req.on("error", reject);
+    req.setTimeout(5000, () => { req.destroy(); reject(new Error("timeout")); });
+    req.end();
+  });
+}
+
 function subirBackend(pathsResolvidos) {
   return new Promise((resolver, rejeitar) => {
     const exe = resolverBackend();
-    const runtimeTarget = require("./runtime-target.js").getCurrentTarget();
-    const manifestPath = path.join(__dirname, "..", "shared", "runtime-targets.json");
 
     try {
       validateExecutable(exe, "Backend do ProspectOS");
     } catch (err) {
-      rejeitar(
-        new Error(
-          `Backend não encontrado para ${runtimeTarget}:\n${exe}\n\n` +
-          `Verifique se o backend foi compilado (modo desenvolvimento) ou ` +
-          `se a instalação está íntegra (modo empacotado).\n` +
-          `Target: ${runtimeTarget}\nManifesto: ${manifestPath}`
-        )
-      );
+      rejeitar(new Error(
+        `Backend não encontrado:\n${exe}\n\nVerifique se o backend foi compilado.\n`
+      ));
       return;
     }
 
-    console.log(
-      `runtime target: ${runtimeTarget}\n` +
-      `backend executable: ${exe}\n` +
-      `runtime manifest: ${manifestPath}`
-    );
+    console.log(`backend: ${exe}`);
 
-    // apaga o porta.txt velho pra não ler porta de uma execução anterior
-    try {
-      fs.unlinkSync(arquivoDaPorta());
-    } catch {
-      /* não existia, tudo bem */
-    }
+    try { fs.unlinkSync(arquivoDaPorta()); } catch { }
 
     backend = spawn(exe, [], {
-      env: {
-        ...process.env,
-        PROSPECTOS_NO_BROWSER: "1",
-        PROSPECTOS_DATA_DIR: pathsResolvidos.PROSPECTOS_DATA_DIR,
-        PROSPECTOS_LOG_DIR: pathsResolvidos.PROSPECTOS_LOG_DIR,
-        PROSPECTOS_TEMP_DIR: pathsResolvidos.PROSPECTOS_TEMP_DIR,
-        PROSPECTOS_RESOURCE_DIR: pathsResolvidos.PROSPECTOS_RESOURCE_DIR,
-        PROSPECTOS_RUNTIME_MANIFEST: manifestPath,
-        PROSPECTOS_RUNTIME_TARGET: runtimeTarget,
-      },
+      cwd: path.dirname(exe),
+      env: ambienteBackend(pathsResolvidos),
       stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
+      windowsHide: process.platform === "win32",
     });
 
     let resolvido = false;
+    const backwardLog = [];
 
-    const aoAchArPorta = (porta) => {
+    function capturar(dados) {
+      const linhas = String(dados).split("\n").filter(Boolean);
+      for (const linha of linhas) {
+        backwardLog.push(linha);
+        if (backwardLog.length > 200) backwardLog.shift();
+        const casado = linha.match(/LISTENING_ON=(\d+)/);
+        if (casado) onPorta(Number(casado[1]));
+      }
+    }
+
+    function onPorta(porta) {
       if (resolvido) return;
       resolvido = true;
       resolver(porta);
-    };
+    }
 
-    backend.stdout.on("data", (dados) => {
-      const casado = String(dados).match(/LISTENING_ON=(\d+)/);
-      if (casado) aoAchArPorta(Number(casado[1]));
-    });
+    backend.stdout.on("data", capturar);
+    backend.stderr.on("data", capturar);
 
-    backend.on("exit", (codigo) => {
+    backend.on("exit", (codigo, sinal) => {
       if (backendEncerradoDeProposito) return;
       if (!resolvido) {
-        rejeitar(new Error(`O backend encerrou antes de subir (código ${codigo}).`));
+        const tail = backwardLog.slice(-50).join("\n");
+        rejeitar(new Error(
+          `O backend encerrou antes de subir (código ${codigo}, sinal ${sinal}).\n\n` +
+          `Últimos logs:\n${tail}`
+        ));
       } else {
-        // backend caiu com o app aberto: avisa e fecha
         dialog.showErrorBox(
           "ProspectOS",
           "O motor do ProspectOS parou de responder. O aplicativo será fechado."
@@ -175,28 +181,50 @@ function subirBackend(pathsResolvidos) {
       }
     });
 
-    // fallback: se o stdout não entregar (ex.: pipe perdido), lê o porta.txt
     const inicio = Date.now();
     const intervalo = setInterval(() => {
-      if (resolvido) {
-        clearInterval(intervalo);
-        return;
-      }
+      if (resolvido) { clearInterval(intervalo); return; }
       try {
         const porta = Number(fs.readFileSync(arquivoDaPorta(), "utf-8").trim());
-        if (porta > 0) {
+        if (porta > 0 && porta <= 65535) {
           clearInterval(intervalo);
-          aoAchArPorta(porta);
+          onPorta(porta);
         }
-      } catch {
-        /* arquivo ainda não existe */
-      }
-      if (Date.now() - inicio > 30_000) {
+      } catch { }
+      if (Date.now() - inicio > BACKEND_STARTUP_TIMEOUT_MS) {
         clearInterval(intervalo);
-        if (!resolvido) rejeitar(new Error("O backend não subiu em 30 segundos."));
+        if (!resolvido) {
+          const tail = backwardLog.slice(-50).join("\n");
+          rejeitar(new Error(
+            `O backend não subiu em ${BACKEND_STARTUP_TIMEOUT_MS / 1000} segundos.\n\n` +
+            `Últimos logs:\n${tail}`
+          ));
+        }
       }
     }, 500);
   });
+}
+
+async function aguardarReadiness(porta) {
+  const deadline = Date.now() + 15_000;
+  let ultimoErro = null;
+
+  while (Date.now() < deadline) {
+    try {
+      const resp = await httpGet(`http://127.0.0.1:${porta}/`);
+      if (resp.status >= 200 && resp.status < 400) {
+        return;
+      }
+      ultimoErro = new Error(`HTTP ${resp.status}`);
+    } catch (err) {
+      ultimoErro = err;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  throw new Error(
+    `Backend não respondeu após 15 segundos na porta ${porta}.\n${ultimoErro?.message || ""}`
+  );
 }
 
 function criarJanela(porta) {
@@ -207,37 +235,34 @@ function criarJanela(porta) {
     minHeight: 640,
     icon: path.join(__dirname, "prospectos.ico"),
     autoHideMenuBar: true,
+    show: false,
     webPreferences: {
-      // a interface é o React servido pelo backend - sem necessidade de Node no renderer
       nodeIntegration: false,
       contextIsolation: true,
     },
   });
+
   janela.loadURL(`http://127.0.0.1:${porta}`);
-  janela.on("closed", () => {
-    janela = null;
-  });
+  janela.once("ready-to-show", () => { janela.show(); });
+  janela.on("closed", () => { janela = null; });
 }
 
 function configurarAutoUpdate() {
-  // Em dev (não empacotado) o updater não tem o que checar
   if (!app.isPackaged) return;
+  if (process.env.PROSPECTOS_DISABLE_UPDATES === "1") return;
   try {
     const { autoUpdater } = require("electron-updater");
     autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = true; // instala sozinho ao fechar o app
-    autoUpdater.checkForUpdatesAndNotify().catch(() => {
-      /* sem internet ou sem release novo - segue o jogo */
-    });
-  } catch {
-    /* updater indisponível não pode impedir o app de abrir */
-  }
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  } catch { }
 }
 
-app.whenReady().then(async () => {
+async function iniciar() {
   try {
     const pathsResolvidos = resolverPaths();
     const porta = await subirBackend(pathsResolvidos);
+    await aguardarReadiness(porta);
     criarJanela(porta);
     configurarAutoUpdate();
   } catch (erro) {
@@ -250,16 +275,65 @@ app.whenReady().then(async () => {
     );
     app.quit();
   }
-});
+}
+
+async function limparBackend() {
+  if (limpando) return limpando;
+  limpando = (async () => {
+    backendEncerradoDeProposito = true;
+    if (!backend || backend.killed) return;
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        try { backend.kill("SIGKILL"); } catch { }
+      }, BACKEND_SHUTDOWN_GRACE_MS);
+
+      backend.on("exit", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+
+      backend.on("error", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+
+      try { backend.kill("SIGTERM"); } catch { }
+    });
+  })();
+  return limpando;
+}
 
 app.on("window-all-closed", () => {
-  // encerra o backend junto com a janela (não deixamos processo órfão)
-  backendEncerradoDeProposito = true;
-  if (backend && !backend.killed) backend.kill();
-  app.quit();
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
 
-app.on("before-quit", () => {
-  backendEncerradoDeProposito = true;
-  if (backend && !backend.killed) backend.kill();
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    if (backend && !backend.killed) {
+      criarJanela(
+        Number(fs.readFileSync(arquivoDaPorta(), "utf-8").trim()) || 5000
+      );
+    } else {
+      iniciar();
+    }
+  }
 });
+
+app.on("before-quit", async (event) => {
+  if (!backendEncerradoDeProposito) {
+    event.preventDefault();
+    await limparBackend();
+    app.quit();
+  }
+});
+
+app.on("will-quit", () => {
+  if (backend && !backend.killed) {
+    try { backend.kill("SIGKILL"); } catch { }
+  }
+});
+
+app.whenReady().then(iniciar);

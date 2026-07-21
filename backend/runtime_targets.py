@@ -162,6 +162,7 @@ def resolve_resource(manifest, target, resource_key, resource_root):
             f"Recurso \"{resource_key}\" nao encontrado no manifesto para {target}"
         )
     name = entry["name"]
+    name = Path(name).name
     return safe_join(resource_root, name)
 
 
