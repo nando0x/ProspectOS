@@ -318,6 +318,18 @@ Rode `py instagram\login.py SEU_USUARIO` de novo. Veja `backend/instagram/LEIA-M
 
 ---
 
+## 🍎 Suporte multiplataforma
+
+O ProspectOS está em processo de adaptação para macOS (Apple Silicon), com
+Windows preservado e Linux planejado. Veja a documentação completa:
+
+- [Visão geral e status](docs/multiplatform/README.md)
+- [Arquitetura](docs/multiplatform/architecture.md)
+- [Decisões arquiteturais](docs/multiplatform/decisions.md)
+- [Roadmap e release checklist](docs/multiplatform/roadmap.md)
+
+---
+
 ## 🤝 Contribuindo
 
 Contribuições são bem-vindas! Este é um projeto mantido nas horas vagas, então o processo é leve. Veja o guia completo em **[CONTRIBUTING.md](CONTRIBUTING.md)** — setup de dev, como rodar os testes e as convenções de código.
