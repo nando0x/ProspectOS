@@ -127,7 +127,7 @@ function resolvePackagedBackend(targetConfig, resourcesPath) {
 }
 
 function resolveDevelopmentBackend(targetConfig, devRoot) {
-  const name = targetConfig.backend.name;
+  const name = path.basename(targetConfig.backend.name);
   const relative = path.join("backend", "dist", "ProspectOS", name);
   const resolved = safeJoin(devRoot, relative);
   return { path: resolved, name };
@@ -140,7 +140,7 @@ function resolvePackagedScraper(targetConfig, resourcesPath) {
 }
 
 function resolveDevelopmentScraper(targetConfig, devRoot) {
-  const name = targetConfig.scraper.name;
+  const name = path.basename(targetConfig.scraper.name);
   const resolved = safeJoin(devRoot, name);
   return { path: resolved, name };
 }

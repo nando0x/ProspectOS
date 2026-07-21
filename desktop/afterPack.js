@@ -1,13 +1,12 @@
-/**
- * Hook afterPack do electron-builder: aplica ícone e metadata no ProspectOS.exe
- * via rcedit (substitui o signAndEditExecutable, desligado porque o pacote
- * winCodeSign exige privilégio de symlink que nem todo Windows tem).
- */
-
 const path = require("path");
-const { rcedit } = require("rcedit");
 
 module.exports = async function aposEmpacotar(contexto) {
+  if (contexto.electronPlatformName !== "win32") {
+    console.log("  • rcedit ignorado (plataforma:", contexto.electronPlatformName, ")");
+    return;
+  }
+
+  const { rcedit } = require("rcedit");
   const exe = path.join(contexto.appOutDir, "ProspectOS.exe");
   const versao = contexto.packager.appInfo.version;
 

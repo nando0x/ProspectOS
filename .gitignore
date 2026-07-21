@@ -15,3 +15,11 @@ instalador/saida/
 # artefatos do PyInstaller (build local)
 backend/dist/
 backend/build/
+
+# build temporario do scraper
+.tmp-scraper-build/
+
+# build do desktop electron-builder
+desktop/saida/
+desktop/.runtime-resources/
+desktop/build/

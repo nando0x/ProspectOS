@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "schemaDescription": "Describes where native artifacts come from — used by build_desktop.py to build reproducibly.",
+  "scraper": {
+    "upstream": "gosom/google-maps-scraper",
+    "tag": "v1.16.3",
+    "commit": "25751bf24ea292792b88100aab5e9b6c794448e3"
+  }
+}

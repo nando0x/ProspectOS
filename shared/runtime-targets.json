@@ -3,20 +3,20 @@
   "description": "Runtime binary targets for ProspectOS — one entry per supported platform+architecture.",
   "targets": {
     "darwin-arm64": {
-      "backend": { "name": "ProspectOS" },
-      "scraper": { "name": "google-maps-scraper" }
+      "backend": { "name": "backend/ProspectOS" },
+      "scraper": { "name": "scraper/google-maps-scraper" }
     },
     "darwin-x64": {
-      "backend": { "name": "ProspectOS" },
-      "scraper": { "name": "google-maps-scraper" }
+      "backend": { "name": "backend/ProspectOS" },
+      "scraper": { "name": "scraper/google-maps-scraper" }
     },
     "win32-x64": {
-      "backend": { "name": "ProspectOS.exe" },
-      "scraper": { "name": "google-maps-scraper.exe" }
+      "backend": { "name": "backend/ProspectOS.exe" },
+      "scraper": { "name": "scraper/google-maps-scraper.exe" }
     },
     "linux-x64": {
-      "backend": { "name": "ProspectOS" },
-      "scraper": { "name": "google-maps-scraper" }
+      "backend": { "name": "backend/ProspectOS" },
+      "scraper": { "name": "scraper/google-maps-scraper" }
     }
   }
 }
