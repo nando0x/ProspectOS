@@ -908,4 +908,4 @@ def disparar_busca():
 
 @bp.route("/api/buscar/status")
 def status_busca():
-    return jsonify(jobs.estado_busca)
+    return jsonify(jobs.obter_status_busca())

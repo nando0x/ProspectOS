@@ -32,13 +32,12 @@ function KanbanColuna({ status, leads, onSelecionarLead }: KanbanColunaProps) {
 
   return (
     <div
-      ref={setNodeRef}
       className={cn(
-        "flex w-72 shrink-0 flex-col gap-2 rounded-xl border border-border bg-muted/20 p-2.5 transition-colors",
+        "flex h-[70vh] max-h-[720px] min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-muted/20 transition-colors",
         isOver && "bg-accent/40 ring-2 ring-primary/50"
       )}
     >
-      <div className="flex items-center justify-between px-1 py-1">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
         <span
           className={cn(
             "rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide",
@@ -47,14 +46,19 @@ function KanbanColuna({ status, leads, onSelecionarLead }: KanbanColunaProps) {
         >
           {LABEL_STATUS[status]}
         </span>
-        <span className="text-xs text-muted-foreground">{leads.length}</span>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {leads.length}
+        </span>
       </div>
 
       <SortableContext
         items={leads.map((l) => l.place_id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="flex min-h-[60px] flex-col gap-2">
+        <div
+          ref={setNodeRef}
+          className="flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto p-2.5"
+        >
           {leads.map((lead) => (
             <KanbanCard
               key={lead.place_id}
@@ -125,7 +129,7 @@ export function KanbanBoard({ leads, onSelecionarLead }: KanbanBoardProps) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {COLUNAS_FUNIL.map((status) => (
           <KanbanColuna
             key={status}

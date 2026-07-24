@@ -23,6 +23,12 @@ import paths
 # ---------------------------------------------------------------------------
 
 class TestModoFonte:
+    @pytest.fixture(autouse=True)
+    def _sem_prospectos_data_dir(self, monkeypatch):
+        monkeypatch.delenv("PROSPECTOS_DATA_DIR", raising=False)
+        monkeypatch.setattr(sys, "frozen", False, raising=False)
+        importlib.reload(paths)
+
     def test_nao_empacotado(self):
         assert paths.EMPACOTADO is False
 
@@ -57,9 +63,14 @@ class TestModoFonte:
 # ---------------------------------------------------------------------------
 
 class TestModoEmpacotado:
+    @pytest.fixture(autouse=True)
+    def _sem_prospectos_data_dir(self, monkeypatch):
+        monkeypatch.delenv("PROSPECTOS_DATA_DIR", raising=False)
+
     def test_dados_vao_para_appdata_e_recursos_para_o_bundle(self, tmp_path, monkeypatch):
         monkeypatch.setattr(sys, "frozen", True, raising=False)
         monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "bundle"), raising=False)
+        monkeypatch.setattr(sys, "platform", "win32", raising=False)
         monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
         try:
             recarregado = importlib.reload(paths)
@@ -75,6 +86,36 @@ class TestModoEmpacotado:
     def test_estado_restaurado_apos_o_teste_anterior(self):
         # sanidade: o reload do finally devolveu o módulo ao modo fonte
         assert paths.EMPACOTADO is False
+
+
+# ---------------------------------------------------------------------------
+# Docker / Linux: PROSPECTOS_DATA_DIR e XDG_DATA_HOME
+# ---------------------------------------------------------------------------
+
+class TestModoLinuxDocker:
+    def test_prospectos_data_dir_tem_prioridade(self, tmp_path, monkeypatch):
+        dados = tmp_path / "data"
+        monkeypatch.setenv("PROSPECTOS_DATA_DIR", str(dados))
+        try:
+            recarregado = importlib.reload(paths)
+            assert recarregado.DIR_DADOS == dados
+            assert recarregado.DIR_RECURSOS == Path(paths.__file__).parent
+        finally:
+            monkeypatch.delenv("PROSPECTOS_DATA_DIR", raising=False)
+            importlib.reload(paths)
+
+    def test_empacotado_linux_usa_xdg_data_home(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "bundle"), raising=False)
+        monkeypatch.setattr(sys, "platform", "linux", raising=False)
+        monkeypatch.delenv("PROSPECTOS_DATA_DIR", raising=False)
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
+        try:
+            recarregado = importlib.reload(paths)
+            assert recarregado.DIR_DADOS == tmp_path / "xdg" / "ProspectOS"
+        finally:
+            monkeypatch.undo()
+            importlib.reload(paths)
 
 
 # ---------------------------------------------------------------------------
