@@ -19,7 +19,7 @@ num CRM visual — do primeiro contato ao fechamento.
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
-![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6?logo=linux&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 [![GitHub stars](https://img.shields.io/github/stars/nando0x/ProspectOS?style=social)](https://github.com/nando0x/ProspectOS)
@@ -39,6 +39,7 @@ num CRM visual — do primeiro contato ao fechamento.
 - [⚠️ Antes de usar](#️-antes-de-usar)
 - [Features](#-features)
 - [Quickstart](#-quickstart)
+- [Linux / Docker](#-linux--docker)
 - [Uso no dia a dia](#-uso-no-dia-a-dia)
 - [Stack](#-stack)
 - [Estrutura do projeto](#-estrutura-do-projeto)
@@ -76,7 +77,7 @@ Leia isto com atenção antes de rodar qualquer coisa:
 - 🔧 **Sem garantia de funcionamento contínuo.** Instagram e Google mudam suas proteções com frequência. Se algo parar de funcionar, é provavelmente por isso.
 - 🚫 **Sem afiliação** com Google, Meta/Instagram, nem com os projetos de terceiros usados (`gosom/google-maps-scraper`, `instagrapi`).
 - 📄 Fornecido **"como está"**, sem garantias. Veja [`LICENSE`](LICENSE) (MIT).
-- 🪟 **Windows apenas.** Os scripts de conveniência (`.bat`) e o binário do scraper de Maps são específicos para Windows.
+- 🪟 **Windows nativo** é o caminho original (scripts `.bat` e binário `.exe` do scraper). **Linux** é suportado via Docker Compose (recomendado) ou dev nativo com `iniciar.sh`.
 
 ---
 
@@ -209,6 +210,71 @@ npm run dev
 ```
 
 Acesse **http://localhost:5173** 🎉
+
+---
+
+## 🐧 Linux / Docker
+
+No Linux, o caminho **recomendado e suportado** é Docker Compose: o container traz Python, Node, Chromium/Playwright e o scraper Linux, com os dados persistidos num volume.
+
+### Pré-requisitos
+
+- Docker Engine + Docker Compose v2
+- Arquivo `.env` na raiz (copie de `backend/.env.example` e preencha ao menos uma chave de IA)
+
+### Subir com Docker
+
+```bash
+cp backend/.env.example .env   # edite e cole suas chaves
+docker compose up --build
+```
+
+Abra **http://localhost:5000** — o Flask serve o frontend buildado e a API na mesma origem.
+
+Os dados (banco SQLite, backups, sessão do Instagram, logs, saídas) ficam no volume nomeado `prospectos-data`, montado em `/data` dentro do container (`PROSPECTOS_DATA_DIR`).
+
+### Atalho no menu de aplicativos (Linux)
+
+Para o ProspectOS aparecer nos seus programas (GNOME, KDE, CachyOS, etc.), depois do clone:
+
+```bash
+chmod +x scripts/install-linux-launcher.sh scripts/prospectos-launch.sh
+./scripts/install-linux-launcher.sh
+```
+
+Isso instala um ícone e um `.desktop` em `~/.local/share/applications/`. Ao clicar em **ProspectOS** no menu:
+
+1. Sobe o Docker Compose se ainda não estiver rodando  
+2. Espera a API responder  
+3. Abre **http://127.0.0.1:5000** no navegador  
+
+Remover o atalho: `./scripts/install-linux-launcher.sh --uninstall`
+
+### Instagram no Docker
+
+O login interativo é feito uma vez dentro do container:
+
+```bash
+docker compose exec -w /app/backend app python3 instagram/login.py SEU_USUARIO
+```
+
+A sessão fica no volume `/data/instagram/sessao/`.
+
+### Dev nativo no Linux (opcional)
+
+Para desenvolvimento sem Docker:
+
+```bash
+./scripts/baixar-scraper.sh   # baixa google-maps-scraper (linux-amd64)
+chmod +x iniciar.sh
+./iniciar.sh                  # backend :5000 + Vite :5173
+```
+
+> O scraper Maps depende de Node.js e das libs do Chromium/Playwright no host. Se algo falhar no ambiente nativo, use Docker — é o caminho testado.
+
+### Google Places API (fallback)
+
+Se o scraper local for bloqueado ou instável na sua rede, em **Configurações → Fonte de dados** você pode alternar para a **Google Places API** oficial (requer chave `PLACES_API_KEY` no `.env` ou na interface).
 
 ---
 

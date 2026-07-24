@@ -9,6 +9,8 @@ export interface EstadoBusca {
   /** Busca por mapa: qual pino está sendo processado (0 quando busca por texto) */
   area_atual: number
   total_areas: number
+  progresso_atual?: number | null
+  progresso_total?: number | null
 }
 
 /** Um pino no mapa com raio de busca. `id` existe só no frontend (chave de lista). */

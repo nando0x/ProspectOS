@@ -7,9 +7,14 @@ jobs que estavam rodando ficam marcados como 'interrompido' (base pra retomada
 na fase 3).
 """
 
+import csv
 import json
 import logging
 import os
+import queue
+import select
+import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -31,6 +36,9 @@ PASTA_INSTAGRAM = DIR_RECURSOS / "instagram"
 sys.path.insert(0, str(PASTA_INSTAGRAM))
 
 TIMEOUT_SCRAPER_SEGUNDOS = 900  # 15 minutos - nunca deve travar pra sempre
+IDLE_TIMEOUT_SCRAPER_SEGUNDOS = 90  # sem nova linha no stdout, mata o processo
+IDLE_TIMEOUT_SCRAPER_COM_CSV_SEGUNDOS = 45  # CSV já tem linhas — encerra mais cedo se stdout parar
+INTERVALO_PROGRESSO_CSV_SEGUNDOS = 2
 
 # guarda o estado da busca em andamento (pra não deixar disparar duas ao mesmo tempo
 # e pra interface conseguir perguntar "já terminou?"). "etapa" e os contadores dão
@@ -61,6 +69,44 @@ estado_instagram = {
 # passariam ambos pela checagem e disparariam dois jobs ao mesmo tempo
 _lock_estado_busca = threading.Lock()
 _lock_estado_instagram = threading.Lock()
+
+
+def nome_binario_scraper():
+    """Nome do binário do scraper conforme a plataforma."""
+    if sys.platform == "win32":
+        return "google-maps-scraper.exe"
+    return "google-maps-scraper"
+
+
+def resolver_caminho_node(ambiente):
+    """Caminho do Node.js para o Playwright embutido no scraper.
+
+    Ordem: config do banco → env → Node portátil do app → padrão do SO.
+    """
+    config_path = db.obter_config("node_path")
+    if config_path:
+        return config_path
+
+    env_path = ambiente.get("PLAYWRIGHT_NODEJS_PATH") or os.environ.get("PLAYWRIGHT_NODEJS_PATH")
+    if env_path:
+        return env_path
+
+    if sys.platform == "win32":
+        node_embutido = caminho_recurso("node", "node.exe")
+        if node_embutido.exists():
+            return str(node_embutido)
+        padrao_windows = Path(r"C:\Program Files\nodejs\node.exe")
+        if padrao_windows.exists():
+            return str(padrao_windows)
+    else:
+        node_embutido = caminho_recurso("node", "node")
+        if node_embutido.exists():
+            return str(node_embutido)
+        encontrado = shutil.which("node")
+        if encontrado:
+            return encontrado
+
+    return shutil.which("node") or ""
 
 # id (na tabela jobs) do job atualmente em execução de cada tipo - só existe um
 # por vez de cada, garantido pelas flags "rodando"
@@ -169,6 +215,50 @@ def liberar_busca():
     estado_busca["rodando"] = False
 
 
+def obter_status_busca():
+    """Estado ao vivo da busca, com progresso e fallback ao último job persistido."""
+    estado = dict(estado_busca)
+    encontradas = estado.get("empresas_encontradas") or 0
+    processadas = estado.get("empresas_processadas") or 0
+    if encontradas > 0:
+        estado["progresso_atual"] = processadas
+        estado["progresso_total"] = encontradas
+    else:
+        estado["progresso_atual"] = None
+        estado["progresso_total"] = None
+
+    if estado["rodando"]:
+        return estado
+
+    conexao = db.conectar()
+    try:
+        ultimo = conexao.execute(
+            "SELECT status, mensagem, etapa, progresso_atual, progresso_total "
+            "FROM jobs WHERE tipo = 'busca_maps' ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    finally:
+        conexao.close()
+
+    if ultimo and ultimo["status"] == "rodando":
+        estado["mensagem"] = (
+            "A busca foi interrompida (o servidor reiniciou durante a execução)."
+        )
+        estado["etapa"] = ultimo["etapa"] or ""
+        estado["progresso_atual"] = ultimo["progresso_atual"]
+        estado["progresso_total"] = ultimo["progresso_total"]
+        return estado
+
+    if not estado.get("mensagem") and ultimo:
+        estado["mensagem"] = ultimo["mensagem"] or ""
+        estado["etapa"] = ultimo["etapa"] or ""
+        if estado["progresso_atual"] is None and ultimo["progresso_atual"] is not None:
+            estado["progresso_atual"] = ultimo["progresso_atual"]
+        if estado["progresso_total"] is None and ultimo["progresso_total"] is not None:
+            estado["progresso_total"] = ultimo["progresso_total"]
+
+    return estado
+
+
 def tentar_reservar_analise_instagram():
     with _lock_estado_instagram:
         if estado_instagram["rodando"]:
@@ -209,7 +299,9 @@ def traduzir_erro_scraper(stderr, returncode):
             "instalado (veja o LEIA-ME.md) e tente novamente."
         )
     if "no such file" in texto or "not found" in texto:
-        return "O programa google-maps-scraper.exe não foi encontrado na pasta do projeto."
+        return (
+            f"O programa {nome_binario_scraper()} não foi encontrado na pasta do projeto."
+        )
     if "deadline exceeded" in texto or "timeout" in texto:
         return "A busca no Google Maps demorou demais e foi interrompida. Tente de novo."
 
@@ -226,10 +318,147 @@ def _ler_stderr_em_thread(pipe, buffer_lista):
     pipe.close()
 
 
-def rodar_scraper_com_progresso(comando, cwd, env, timeout_segundos, callback_linha=None):
+def _matar_processo_e_filhos(processo):
+    """Encerra o scraper e subprocessos (ex.: navegador do Playwright)."""
+    if processo.poll() is not None:
+        return
+    if sys.platform != "win32":
+        try:
+            os.killpg(os.getpgid(processo.pid), signal.SIGKILL)
+        except (ProcessLookupError, OSError):
+            processo.kill()
+    else:
+        processo.kill()
+    try:
+        processo.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def _ler_stdout_com_idle(
+    processo, timeout_segundos, idle_timeout_segundos, callback_linha, idle_timeout_getter=None
+):
+    """Lê stdout linha a linha com timeout global e de inatividade (sem nova linha).
+
+    Retorna True se o processo foi morto por inatividade no stdout.
+    idle_timeout_getter, se informado, é chamado a cada iteração para permitir timeout
+    dinâmico (ex.: menor quando o CSV já tem resultados).
+    """
+    inicio = time.monotonic()
+    ultima_atividade = inicio
+    killed_idle = False
+
+    def _idle_limite():
+        if idle_timeout_getter:
+            return idle_timeout_getter()
+        return idle_timeout_segundos
+
+    def _processar_linha(linha):
+        nonlocal ultima_atividade
+        ultima_atividade = time.monotonic()
+        if callback_linha:
+            callback_linha(linha)
+
+    if sys.platform == "win32":
+        fila_linhas = queue.Queue()
+
+        def _leitor():
+            for linha in processo.stdout:
+                fila_linhas.put(linha)
+            fila_linhas.put(None)
+
+        thread_stdout = threading.Thread(target=_leitor, daemon=True)
+        thread_stdout.start()
+
+        while True:
+            if time.monotonic() - inicio > timeout_segundos:
+                _matar_processo_e_filhos(processo)
+                raise subprocess.TimeoutExpired(processo.args, timeout_segundos)
+
+            tempo_idle_restante = _idle_limite() - (time.monotonic() - ultima_atividade)
+            if tempo_idle_restante <= 0 and processo.poll() is None:
+                logger.warning(
+                    "scraper sem stdout há %ss - encerrando processo", _idle_limite()
+                )
+                _matar_processo_e_filhos(processo)
+                killed_idle = True
+                break
+
+            try:
+                linha = fila_linhas.get(timeout=min(max(tempo_idle_restante, 0.05), 1.0))
+            except queue.Empty:
+                if processo.poll() is not None:
+                    while True:
+                        try:
+                            linha = fila_linhas.get_nowait()
+                        except queue.Empty:
+                            break
+                        if linha is None:
+                            break
+                        _processar_linha(linha)
+                    break
+                continue
+
+            if linha is None:
+                break
+            _processar_linha(linha)
+    else:
+        while True:
+            if time.monotonic() - inicio > timeout_segundos:
+                _matar_processo_e_filhos(processo)
+                raise subprocess.TimeoutExpired(processo.args, timeout_segundos)
+
+            tempo_idle_restante = _idle_limite() - (time.monotonic() - ultima_atividade)
+            if tempo_idle_restante <= 0 and processo.poll() is None:
+                logger.warning(
+                    "scraper sem stdout há %ss - encerrando processo", _idle_limite()
+                )
+                _matar_processo_e_filhos(processo)
+                killed_idle = True
+                break
+
+            pronto, _, _ = select.select(
+                [processo.stdout], [], [], min(max(tempo_idle_restante, 0.05), 1.0)
+            )
+            if pronto:
+                linha = processo.stdout.readline()
+                if not linha:
+                    break
+                _processar_linha(linha)
+            elif processo.poll() is not None:
+                while True:
+                    pronto_resto, _, _ = select.select([processo.stdout], [], [], 0)
+                    if not pronto_resto:
+                        break
+                    linha = processo.stdout.readline()
+                    if not linha:
+                        break
+                    _processar_linha(linha)
+                break
+
+    return killed_idle
+
+
+def rodar_scraper_com_progresso(
+    comando,
+    cwd,
+    env,
+    timeout_segundos,
+    callback_linha=None,
+    idle_timeout_segundos=IDLE_TIMEOUT_SCRAPER_SEGUNDOS,
+    idle_timeout_getter=None,
+):
     """Roda o scraper igual subprocess.run(), mas lê o stdout linha a linha em tempo
     real (em vez de esperar o processo inteiro terminar), chamando callback_linha
-    a cada linha - é isso que alimenta o contador de progresso ao vivo."""
+    a cada linha - é isso que alimenta o contador de progresso ao vivo.
+
+    Retorna (returncode, stderr, killed_idle). killed_idle=True quando o processo
+    foi morto por ficar sem emitir stdout dentro de idle_timeout_segundos.
+    """
+    popen_kwargs = {}
+    if sys.platform != "win32":
+        popen_kwargs["start_new_session"] = True
+
     processo = subprocess.Popen(
         comando,
         cwd=cwd,
@@ -240,6 +469,7 @@ def rodar_scraper_com_progresso(comando, cwd, env, timeout_segundos, callback_li
         encoding="utf-8",
         errors="replace",
         bufsize=1,
+        **popen_kwargs,
     )
 
     stderr_linhas = []
@@ -249,27 +479,78 @@ def rodar_scraper_com_progresso(comando, cwd, env, timeout_segundos, callback_li
     thread_stderr.start()
 
     inicio = time.monotonic()
+    killed_idle = False
     try:
-        for linha in processo.stdout:
-            if time.monotonic() - inicio > timeout_segundos:
-                processo.kill()
-                processo.wait(timeout=5)
-                raise subprocess.TimeoutExpired(comando, timeout_segundos)
-
-            if callback_linha:
-                callback_linha(linha)
-
+        killed_idle = _ler_stdout_com_idle(
+            processo, timeout_segundos, idle_timeout_segundos, callback_linha, idle_timeout_getter
+        )
         tempo_restante = max(1, timeout_segundos - (time.monotonic() - inicio))
         returncode = processo.wait(timeout=tempo_restante)
     except subprocess.TimeoutExpired:
-        processo.kill()
-        processo.wait(timeout=5)
+        _matar_processo_e_filhos(processo)
         raise
     finally:
         processo.stdout.close()
         thread_stderr.join(timeout=5)
 
-    return returncode, "".join(stderr_linhas)
+    return returncode, "".join(stderr_linhas), killed_idle
+
+
+def _csv_bruto_tem_dados(arquivo_bruto):
+    """True se o CSV existe com cabeçalho e pelo menos uma linha de dados."""
+    return _contar_linhas_dados_csv(arquivo_bruto) > 0
+
+
+def _contar_linhas_dados_csv(arquivo_bruto):
+    """Conta linhas de dados no CSV (exclui cabeçalho)."""
+    try:
+        if not arquivo_bruto.exists():
+            return 0
+        with arquivo_bruto.open(encoding="utf-8", errors="replace", newline="") as arquivo:
+            leitor = csv.reader(arquivo)
+            next(leitor, None)
+            return sum(1 for _ in leitor)
+    except OSError:
+        return 0
+
+
+def _atualizar_progresso_csv(arquivo_bruto, job_id=None):
+    """Atualiza contadores ao vivo a partir do CSV bruto (monotônico)."""
+    contagem = _contar_linhas_dados_csv(arquivo_bruto)
+    if contagem <= 0:
+        return 0
+
+    estado_busca["empresas_encontradas"] = max(
+        estado_busca.get("empresas_encontradas", 0), contagem
+    )
+    estado_busca["empresas_processadas"] = max(
+        estado_busca.get("empresas_processadas", 0), contagem
+    )
+    estado_busca["mensagem"] = (
+        f"Buscando no Google Maps... {contagem} empresa(s) capturada(s)"
+    )
+
+    job_atual = job_id if job_id is not None else _job_id_busca
+    progresso_total = max(
+        contagem,
+        estado_busca.get("empresas_encontradas", 0),
+    )
+    _atualizar_job(
+        job_atual,
+        etapa="scraping",
+        mensagem=estado_busca["mensagem"],
+        progresso_atual=contagem,
+        progresso_total=progresso_total,
+    )
+    return contagem
+
+
+def _monitorar_progresso_csv(arquivo_bruto, parar_evento, job_id=None):
+    """Thread: lê o CSV a cada ~2s até parar_evento ser sinalizado."""
+    while not parar_evento.wait(INTERVALO_PROGRESSO_CSV_SEGUNDOS):
+        if estado_busca.get("etapa") == "scraping":
+            _atualizar_progresso_csv(arquivo_bruto, job_id=job_id)
+    _atualizar_progresso_csv(arquivo_bruto, job_id=job_id)
 
 
 def _processar_linha_de_progresso_scraper(linha_texto):
@@ -312,40 +593,70 @@ def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
     """Roda o binário do scraper uma vez, com progresso ao vivo.
     Retorna None em sucesso, ou a mensagem de erro amigável em falha."""
     comando_scraper = [
-        str(caminho_recurso("google-maps-scraper.exe")),
+        str(caminho_recurso(nome_binario_scraper())),
         "-input", str(DIR_DADOS / "queries.txt"),
         "-results", str(arquivo_bruto),
         "-lang", "pt",
         "-depth", "5",
-        "-exit-on-inactivity", "3m",
+        "-exit-on-inactivity", "1m",
         *flags_extras,
     ]
     proxies = db.obter_config("scraper_proxies")
     if proxies:
         comando_scraper += ["-proxies", proxies]
 
+    parar_watcher = threading.Event()
+    watcher = threading.Thread(
+        target=_monitorar_progresso_csv,
+        args=(arquivo_bruto, parar_watcher, _job_id_busca),
+        daemon=True,
+    )
+    watcher.start()
+
+    def _idle_timeout_dinamico():
+        if _csv_bruto_tem_dados(arquivo_bruto):
+            return IDLE_TIMEOUT_SCRAPER_COM_CSV_SEGUNDOS
+        return IDLE_TIMEOUT_SCRAPER_SEGUNDOS
+
     try:
         # cwd precisa ser GRAVÁVEL: o scraper cria arquivos de trabalho (cache do
         # Playwright etc.) - empacotado, a pasta do app é read-only, então usamos
         # a área de dados
-        returncode, stderr_completo = rodar_scraper_com_progresso(
+        returncode, stderr_completo, killed_idle = rodar_scraper_com_progresso(
             comando=comando_scraper,
             cwd=str(DIR_DADOS),
             env=ambiente,
             timeout_segundos=TIMEOUT_SCRAPER_SEGUNDOS,
             callback_linha=_processar_linha_de_progresso_scraper,
+            idle_timeout_getter=_idle_timeout_dinamico,
         )
     except subprocess.TimeoutExpired:
         logger.error("scraper excedeu o tempo limite de %ss", TIMEOUT_SCRAPER_SEGUNDOS)
+        if _csv_bruto_tem_dados(arquivo_bruto):
+            logger.warning(
+                "scraper excedeu o tempo limite, mas %s tem dados - continuando", arquivo_bruto
+            )
+            return None
         return (
             "A busca demorou demais e foi cancelada. Tente com menos nichos por vez, "
             "ou confira sua conexão com a internet."
         )
     except FileNotFoundError:
-        logger.exception("google-maps-scraper.exe não encontrado")
-        return "O programa google-maps-scraper.exe não foi encontrado na pasta do projeto."
+        logger.exception("%s não encontrado", nome_binario_scraper())
+        return f"O programa {nome_binario_scraper()} não foi encontrado na pasta do projeto."
+    finally:
+        parar_watcher.set()
+        watcher.join(timeout=5)
 
-    if returncode != 0:
+    if returncode != 0 or killed_idle:
+        if _csv_bruto_tem_dados(arquivo_bruto):
+            logger.warning(
+                "scraper terminou com código %s (killed_idle=%s), mas %s tem dados - continuando",
+                returncode,
+                killed_idle,
+                arquivo_bruto,
+            )
+            return None
         logger.error("scraper falhou (código %s). stderr: %s", returncode, stderr_completo[-2000:])
         return traduzir_erro_scraper(stderr_completo, returncode)
     return None
@@ -518,18 +829,8 @@ def _rodar_busca_em_background(areas=None):
         pasta_saidas = DIR_DADOS / "saidas"
         pasta_saidas.mkdir(parents=True, exist_ok=True)
 
-        # caminho do Node usado pelo Playwright embutido no scraper: pode vir da
-        # tabela configuracoes (chave "node_path"), da variável de ambiente, do
-        # Node portátil distribuído junto com o app empacotado, ou cai no local
-        # padrão de instalação do Windows
-        node_embutido = caminho_recurso("node", "node.exe")
         ambiente = os.environ.copy()
-        ambiente["PLAYWRIGHT_NODEJS_PATH"] = (
-            db.obter_config("node_path")
-            or ambiente.get("PLAYWRIGHT_NODEJS_PATH")
-            or (str(node_embutido) if node_embutido.exists() else None)
-            or r"C:\Program Files\nodejs\node.exe"
-        )
+        ambiente["PLAYWRIGHT_NODEJS_PATH"] = resolver_caminho_node(ambiente)
 
         if areas:
             contagens = _buscar_por_areas(areas, ambiente, data)

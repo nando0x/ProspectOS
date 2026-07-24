@@ -1,4 +1,5 @@
 .env
+.venv/
 leads.db
 # arquivos temporários do SQLite em modo WAL - também contêm dados de leads
 leads.db-*
@@ -11,6 +12,7 @@ backups/
 backups_manuais/
 .pytest_cache/
 google-maps-scraper.exe
+google-maps-scraper
 queries.txt
 instagram/sessao/
 instagram/comentarios/

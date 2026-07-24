@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      PROSPECTOS_DATA_DIR: /data
+      PROSPECTOS_HOST: 0.0.0.0
+      PROSPECTOS_PORT: "5000"
+    volumes:
+      - prospectos-data:/data
+    shm_size: "1gb"
+    restart: unless-stopped
+
+volumes:
+  prospectos-data:
