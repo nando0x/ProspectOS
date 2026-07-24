@@ -40,6 +40,7 @@ num CRM visual — do primeiro contato ao fechamento.
 - [Features](#-features)
 - [Quickstart](#-quickstart)
 - [Linux / Docker](#-linux--docker)
+- [Roadmap](#-roadmap)
 - [Uso no dia a dia](#-uso-no-dia-a-dia)
 - [Stack](#-stack)
 - [Estrutura do projeto](#-estrutura-do-projeto)
@@ -217,6 +218,20 @@ Acesse **http://localhost:5173** 🎉
 
 No Linux, o caminho **recomendado e suportado** é Docker Compose: o container traz Python, Node, Chromium/Playwright e o scraper Linux, com os dados persistidos num volume.
 
+### Instalação one-click
+
+[![Linux one-click](https://img.shields.io/badge/Linux-one--click%20install-107a4a?style=flat&logo=linux&logoColor=white)](INSTALAR-LINUX.md)
+
+Com Docker Engine + Compose v2 instalados:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Teolfeu/ProspectOS/linux-docker/scripts/install-linux.sh -o install-prospectos.sh
+chmod +x install-prospectos.sh
+./install-prospectos.sh
+```
+
+O script clona em `~/ProspectOS`, cria o `.env`, sobe o container, instala o atalho no menu e abre o navegador. Detalhes em [`INSTALAR-LINUX.md`](INSTALAR-LINUX.md).
+
 ### Pré-requisitos
 
 - Docker Engine + Docker Compose v2
@@ -275,6 +290,20 @@ chmod +x iniciar.sh
 ### Google Places API (fallback)
 
 Se o scraper local for bloqueado ou instável na sua rede, em **Configurações → Fonte de dados** você pode alternar para a **Google Places API** oficial (requer chave `PLACES_API_KEY` no `.env` ou na interface).
+
+### Imagem Docker pré-construída (opcional)
+
+Por padrão o Compose usa `ghcr.io/teolfeu/prospectos:latest` quando disponível, ou faz build local. Para forçar outra imagem, defina no `.env`:
+
+```bash
+PROSPECTOS_IMAGE=ghcr.io/teolfeu/prospectos:latest
+```
+
+---
+
+## 🗺️ Roadmap
+
+Prioridades de produto e próximos passos: [`ROADMAP.md`](ROADMAP.md)
 
 ---
 

@@ -1,6 +1,8 @@
 services:
   app:
+    image: ${PROSPECTOS_IMAGE:-ghcr.io/teolfeu/prospectos:latest}
     build: .
+    pull_policy: missing
     ports:
       - "5000:5000"
     env_file:
