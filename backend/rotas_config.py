@@ -148,7 +148,7 @@ def obter_proxies_scraper():
 
 @bp.route("/api/configuracoes/scraper-proxies", methods=["POST"])
 def salvar_proxies_scraper():
-    """Salva a lista de proxies (opcional) usada pelo google-maps-scraper.exe -
+    """Salva a lista de proxies (opcional) usada pelo google-maps-scraper -
     formato aceito pelo scraper: protocol://user:pass@host:port, separados por
     vírgula. Útil quando o Google bloqueia buscas repetidas vindas do mesmo IP."""
     dados = request.json or {}

@@ -116,8 +116,8 @@ export function FonteMapsCard() {
             }
           />
           <p className="text-xs text-muted-foreground">
-            A chave fica protegida no cofre de credenciais do Windows e nunca é
-            enviada ao navegador depois de salva.
+            A chave fica protegida no cofre de credenciais do sistema quando disponível
+            e nunca é enviada ao navegador depois de salva.
           </p>
 
           <a

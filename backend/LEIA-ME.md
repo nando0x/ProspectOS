@@ -4,7 +4,12 @@
 
 1. Instale as dependências do Python (uma única vez):
    ```powershell
+   # Windows
    py -m pip install -r requirements.txt
+   ```
+   ```bash
+   # macOS/Linux
+   python3.11 -m pip install -r requirements.txt
    ```
 2. Pegue sua chave gratuita do Google Gemini em https://aistudio.google.com/apikey
 3. Copie o arquivo `.env.example` para um novo arquivo chamado `.env` (na mesma pasta) e cole sua chave:
@@ -15,9 +20,14 @@
 
 ## Como usar no dia a dia
 
-1. Abra o PowerShell nesta pasta e rode:
+1. Abra um terminal nesta pasta e rode:
    ```powershell
+   # Windows
    py app.py
+   ```
+   ```bash
+   # macOS/Linux
+   python3.11 app.py
    ```
 2. Abra o navegador em **http://localhost:5000**
 3. No topo da tela aparece um **painel com números** (total de leads, quantos foram contatados/responderam/fecharam, sua taxa de conversão, e quantos follow-ups estão marcados para hoje).
@@ -33,7 +43,7 @@
 7. Use os filtros no topo (busca por nome, status, nicho, nota mínima) pra organizar sua lista — se um filtro não encontrar nada, aparece um botão de "Limpar filtros".
 8. Clique em **"⬇ Exportar CSV"** a qualquer momento pra baixar uma planilha completa dos leads que estão sendo exibidos (respeitando os filtros ativos), com nome, status, tags, WhatsApp e observações.
 
-Para fechar, é só fechar a aba do navegador e apertar `Ctrl+C` no PowerShell onde o `py app.py` está rodando.
+Para fechar, é só fechar a aba do navegador e apertar `Ctrl+C` no terminal onde o backend está rodando.
 
 ## O que a ferramenta já filtra pra você
 
@@ -55,14 +65,19 @@ Para fechar, é só fechar a aba do navegador e apertar `Ctrl+C` no PowerShell o
 Não. Significa que a ferramenta já tinha visto a maioria daquelas empresas antes (deduplicação funcionando). Se aparecer "nenhuma empresa foi encontrada", vale conferir se o nicho/cidade estão escritos corretamente.
 
 **Quero apagar tudo e começar do zero?**
-Feche o `py app.py`, apague o arquivo `leads.db` e rode `py app.py` de novo (ele recria o banco vazio). Se der errado, tem uma cópia de segurança recente na pasta `backups/`.
+Feche o backend, apague o arquivo `leads.db` e rode o backend de novo (ele recria o banco vazio). Se der errado, tem uma cópia de segurança recente na pasta `backups/`.
 
 **A geração de mensagem deu erro.**
 A própria mensagem de erro já vem explicando o motivo (chave não configurada, cota da IA esgotada, etc.). Se for sobre a chave, confira se você criou o arquivo `.env` (não `.env.example`) na pasta do projeto, com sua chave colada corretamente, e reinicie o `py app.py`.
 
 **Quero rodar os testes automatizados (só necessário se for mexer no código).**
 ```powershell
+# Windows
 py -m pytest
+```
+```bash
+# macOS/Linux
+python3.11 -m pytest
 ```
 
 **Ainda quero usar do jeito antigo (sem interface), só linha de comando.**

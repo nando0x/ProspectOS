@@ -5,12 +5,15 @@ leads.db-*
 saidas/
 __pycache__/
 *.pyc
+.venv/
+.playwright-driver/
 logs/
 *.log
 backups/
 backups_manuais/
 .pytest_cache/
 google-maps-scraper.exe
+google-maps-scraper
 queries.txt
 instagram/sessao/
 instagram/comentarios/
