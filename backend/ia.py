@@ -273,11 +273,28 @@ def _bloco_perfil_vendedor():
 
     linhas = ["", "Quem envia as mensagens (escreva na voz dessa pessoa):"]
     if nome:
-        linhas.append(f"- Nome: {nome} (apresente-se pelo nome quando soar natural)")
+        linhas.append(
+            f"- Nome: {nome} - apresente-se por ele ('meu nome é {nome}', 'sou o {nome}') "
+            "logo na primeira ou segunda frase. Mensagem de gente tem remetente com nome."
+        )
     if apresentacao:
         linhas.append(f"- O que faz: {apresentacao}")
     if diferencial:
         linhas.append(f"- Diferencial a destacar quando couber: {diferencial}")
+
+    # Sem esta instrução o modelo descreve a oferta com um genérico próprio
+    # ("eu crio sites para negócios locais") e o perfil vira decoração - foi o
+    # que a medição mostrou: 0 menções ao que o vendedor realmente faz.
+    linhas += [
+        "",
+        "Este perfil é a ÚNICA fonte da verdade sobre quem envia e o que se oferece:",
+        "- Ao dizer o que você faz, derive de 'O que faz' acima - resumido e adaptado ao "
+        "contexto do lead. NUNCA substitua por uma descrição genérica de sua autoria.",
+        "- Se o perfil cobre mais do que site, o site é a porta de entrada (é o problema "
+        "detectado), não o teto da oferta: cite o resto como o que vem junto, sem virar lista.",
+        "- Encaixe o diferencial sempre que couber com naturalidade - é ele que separa esta "
+        "mensagem das outras que o dono do negócio recebe toda semana.",
+    ]
     return "\n".join(linhas) + "\n"
 
 
@@ -297,13 +314,16 @@ Regras invariáveis (valem para TODA mensagem):
 - {tom_canal}
 - Abra de forma natural e direta. Nunca comece com "Estava navegando/pesquisando no Google e vi..." nem variações - é o clichê nº 1 do spam.
 - Use APENAS os dados fornecidos; nunca invente números, prêmios, clientes ou depoimentos.
+- NUNCA invente o nome de quem RECEBE a mensagem. Só chame o destinatário por um primeiro nome se ele estiver LITERALMENTE no campo Nome da empresa. Na dúvida, fale com o negócio ("vocês", "a equipe") - escolher um nome plausível ("Boa tarde, Ana!") queima o lead na primeira linha. Isto NÃO se aplica ao SEU nome: o seu está no perfil, é real, e você deve se apresentar com ele.
+- NUNCA invente fatos sobre você ou sobre seu contato com a empresa: nada de "estou passando pela cidade", "conheço o trabalho de vocês", "um amigo indicou", "já fui cliente". Você não esteve lá.
 - Adapte o vocabulário ao nicho (clínica → "agenda de pacientes"; imobiliária → "captação de clientes"; restaurante → "reservas e pedidos").
 - Se o campo Nome for dominado por nome de pessoa (ex: "Dra. Ana Souza Odontologia"), fale COM a pessoa pelo primeiro nome, "você" no singular. Se for institucional (ex: "Vivarte Odontologia"), use "vocês"/"a equipe", sem inventar nomes.
 - Termine com o fechamento EXATO indicado na tarefa - pedido de ação específico e fechado, nunca "faz sentido conversarmos?".
 - Responda APENAS com o texto final da mensagem: sem aspas em volta, sem explicações, sem markdown.
 
-Exemplo do tom certo (régua de qualidade - não copie a estrutura literalmente):
-"Janete, boa tarde! Vi que a Estética Vit tem nota 5.0 no Google com mais de 100 avaliações - reputação que pouca clínica da região alcança. Só que quem pesquisa 'estética em Cuiabá' fora do Maps não te encontra, e acaba no site de outra clínica. Eu crio sites profissionais para negócios locais; posso te mandar uma prévia de como ficaria o da Vit?"
+Exemplo de RITMO e TEMPERATURA - não é um molde. Nunca reaproveite as frases dele, e repare que a oferta está marcada como lacuna justamente porque quem a preenche é o perfil acima, não este exemplo:
+"Boa tarde! Vi que a Estética Vit tem nota 5.0 no Google com mais de 100 avaliações - reputação que pouca clínica da região alcança. Só que quem pesquisa 'estética em Cuiabá' fora do Maps não encontra vocês, e acaba no site de outra clínica. <UMA FRASE COM O QUE VOCÊ FAZ, DERIVADA DO PERFIL ACIMA>; posso mandar uma prévia de como ficaria o da Vit?"
+(Note que o exemplo trata "Estética Vit" como negócio, no "vocês" - nenhum nome de pessoa foi inventado, porque o campo Nome não tinha nenhum.)
 """
 
 
@@ -359,7 +379,9 @@ Use esse conteúdo para citar UM detalhe específico do site (algo desatualizado
         else ""
     )
 
-    return f"""Escreva UMA mensagem de primeiro contato via WhatsApp (3-5 frases) oferecendo a criação de um site profissional para a empresa abaixo.
+    return f"""Escreva UMA mensagem de primeiro contato via WhatsApp (3-5 frases) para a empresa abaixo.
+
+O GANCHO é a situação do site dela (detalhada logo abaixo). A OFERTA é o que você faz, conforme o seu perfil no system - se não houver perfil configurado, ofereça a criação de um site profissional.
 
 {_contexto_site(site_status, site_problemas)}
 {bloco_conteudo}

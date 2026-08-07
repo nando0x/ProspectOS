@@ -218,6 +218,60 @@ class TestSystemPrompt:
         assert "crio sites para negócios locais" in system
         assert "entrego em 7 dias" in system
 
+    def test_perfil_vem_com_instrucao_de_usar_o_que_faz(self, monkeypatch):
+        """Só listar o perfil não basta: sem instrução explícita o modelo descreve a
+        oferta com um genérico próprio e ignora o campo 'O que faz' (medido: 0/4)."""
+        perfil = {
+            "vendedor_nome": "Gabriel",
+            "vendedor_apresentacao": "estruturo a presença digital completa de negócios locais",
+            "vendedor_diferencial": "diagnóstico gratuito antes de qualquer proposta",
+        }
+        monkeypatch.setattr(db, "obter_config", lambda chave, default=None: perfil.get(chave, default))
+
+        system = ia.montar_system_copywriter("WhatsApp")
+        assert "ÚNICA fonte da verdade" in system
+        assert "NUNCA substitua por uma descrição genérica" in system
+
+    def test_sem_perfil_nao_tem_instrucao_de_fonte_da_verdade(self, monkeypatch):
+        monkeypatch.setattr(db, "obter_config", lambda chave, default=None: default)
+        assert "ÚNICA fonte da verdade" not in ia.montar_system_copywriter("WhatsApp")
+
+    def test_proibe_inventar_nome_de_pessoa_e_contato_previo(self, monkeypatch):
+        """Regressão: o modelo abriu com 'Boa tarde, Ana!' num lead institucional e
+        alegou 'estou passando pela cidade'. Ambos são invenção pura."""
+        monkeypatch.setattr(db, "obter_config", lambda chave, default=None: default)
+        system = ia.montar_system_copywriter("WhatsApp")
+        assert "NUNCA invente o nome de quem RECEBE" in system
+        assert "NUNCA invente fatos sobre você" in system
+
+    def test_proibicao_de_nome_nao_atinge_o_remetente(self, monkeypatch):
+        """A 1a versão da regra derrubou a assinatura junto (3/12 -> 0/12): o modelo
+        passou a evitar nomes em geral, inclusive o do próprio vendedor."""
+        perfil = {
+            "vendedor_nome": "Gabriel",
+            "vendedor_apresentacao": "estruturo presença digital",
+            "vendedor_diferencial": "diagnóstico gratuito",
+        }
+        monkeypatch.setattr(db, "obter_config", lambda chave, default=None: perfil.get(chave, default))
+
+        system = ia.montar_system_copywriter("WhatsApp")
+        assert "NÃO se aplica ao SEU nome" in system
+        assert "meu nome é Gabriel" in system
+
+    def test_exemplo_nao_carrega_oferta_concreta_pra_copiar(self, monkeypatch):
+        """O exemplo trazia 'Eu crio sites profissionais para negócios locais' e o
+        modelo copiava essa frase em vez de usar o perfil. A oferta virou lacuna."""
+        monkeypatch.setattr(db, "obter_config", lambda chave, default=None: default)
+        system = ia.montar_system_copywriter("WhatsApp")
+        assert "Eu crio sites profissionais para negócios locais" not in system
+        assert "<UMA FRASE COM O QUE VOCÊ FAZ, DERIVADA DO PERFIL ACIMA>" in system
+
+    def test_exemplo_nao_usa_nome_de_pessoa_inventado(self, monkeypatch):
+        """O exemplo abria com 'Janete' para um negócio chamado 'Estética Vit' - ou
+        seja, demonstrava exatamente o comportamento que as regras proíbem."""
+        monkeypatch.setattr(db, "obter_config", lambda chave, default=None: default)
+        assert "Janete" not in ia.montar_system_copywriter("WhatsApp")
+
     def test_canal_muda_o_tom(self, monkeypatch):
         monkeypatch.setattr(db, "obter_config", lambda chave, default=None: default)
         assert "DM real" in ia.montar_system_copywriter("DM do Instagram")
