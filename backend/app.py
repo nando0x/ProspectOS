@@ -9,6 +9,7 @@ http://localhost:5173 - use o iniciar.bat na raiz pra subir os dois juntos.
 O código está dividido por responsabilidade:
     rotas_leads.py      - CRM dos leads do Google Maps + disparo da busca
     rotas_instagram.py  - CRM dos leads do Instagram + disparo da análise
+    rotas_conversa.py   - cockpit de negociação (histórico WhatsApp + análise IA)
     rotas_analytics.py  - métricas, funis, meta semanal, follow-ups do dia
     rotas_config.py     - chaves de IA, proxies, templates de mensagem
     ia.py               - provedores de IA e fallback unificado
