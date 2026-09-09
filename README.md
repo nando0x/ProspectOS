@@ -75,6 +75,7 @@ Leia isto com atenção antes de rodar qualquer coisa:
 
 - 🕷️ **Isto é uma ferramenta de scraping.** Raspar o Google Maps e o Instagram pode violar os Termos de Uso dessas plataformas. Use por sua conta e risco.
 - 📸 **O módulo do Instagram usa sua conta pessoal** (via [instagrapi](https://github.com/subzeroid/instagrapi)) para logar e consultar dados. Isso pode resultar em **checkpoint de segurança ou banimento temporário/permanente da conta**. Recomendado: use uma conta secundária, rode com moderação, e nunca compartilhe o arquivo de sessão gerado.
+- 💬 **O cockpit de conversa lê a janela do WhatsApp Web do app.** A leitura é **passiva** (só observa o chat que *você* abriu, nunca navega nem varre conversas) e **nenhuma mensagem é enviada automaticamente** — você revisa e envia sempre. Ainda assim, automatizar o WhatsApp Web contra os Termos de Uso da Meta traz **risco de bloqueio do seu número**. Não existe implementação "indetectável": quem promete isso está mentindo. Se preferir risco zero, o cockpit funciona 100% no modo manual (você cola as mensagens) — inclusive no navegador, sem o app de desktop.
 - 🔧 **Sem garantia de funcionamento contínuo.** Instagram e Google mudam suas proteções com frequência. Se algo parar de funcionar, é provavelmente por isso.
 - 🚫 **Sem afiliação** com Google, Meta/Instagram, nem com os projetos de terceiros usados (`gosom/google-maps-scraper`, `instagrapi`).
 - 📄 Fornecido **"como está"**, sem garantias. Veja [`LICENSE`](LICENSE) (MIT).
@@ -162,6 +163,8 @@ O `google-maps-scraper.exe` **não vem no repositório** (é um binário de terc
 > ✅ **Como saber se funcionou:** ao clicar em "Nova busca" no canal Google Maps do ProspectOS, a busca deve iniciar normalmente. Se aparecer um erro dizendo que o programa não foi encontrado, revise o nome do arquivo (passo 4) e o local onde ele está (passo 5). São os dois erros mais comuns.
 >
 > Sem esse arquivo, **só o canal Google Maps fica indisponível**. O canal Instagram funciona normalmente sem ele.
+
+> ⚠️ **Erro de "Playwright/driver não disponível"?** Na primeira busca, o scraper baixa um componente (driver do Playwright) dos servidores da Microsoft — numa versão fixa, gravada dentro do `.exe`. A Microsoft remove versões antigas desse componente, então um `google-maps-scraper.exe` baixado há muito tempo pode procurar um driver que **não existe mais**. Solução: baixe de novo a [release mais recente](https://github.com/gosom/google-maps-scraper/releases/latest) e substitua o `.exe` — ou, se preferir não depender do scraper, use a **Google Places API oficial** em *Configurações → Fonte de dados*.
 
 ### 4. Faça login no Instagram (só se for usar esse canal)
 

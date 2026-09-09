@@ -4,7 +4,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ExternalLink, FileDown, Flame, RefreshCw } from "lucide-react"
+import { ExternalLink, FileDown, Flame, MessagesSquare, RefreshCw } from "lucide-react"
+import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useLeadMutations } from "@/hooks/useLeadMutations"
@@ -86,6 +87,14 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
               />
               {mutations.reanalisarSite.isPending ? "Reanalisando..." : "Reanalisar site"}
             </button>
+
+            <Link
+              to={`/conversas/${encodeURIComponent(lead.place_id)}`}
+              className="inline-flex items-center gap-1 text-xs font-medium text-success underline-offset-2 hover:underline"
+            >
+              <MessagesSquare className="size-3.5" />
+              Cockpit de conversa
+            </Link>
           </div>
         </DialogHeader>
 

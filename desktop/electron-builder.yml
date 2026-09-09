@@ -16,6 +16,11 @@ directories:
 
 files:
   - main.js
+  # os dois preloads PRECISAM estar aqui: sem eles no pacote, a captura do
+  # WhatsApp e os eventos do cockpit falham em silêncio no app instalado
+  # (funcionam em dev, porque em dev o electron lê a pasta direto)
+  - preload-app.js
+  - preload-whatsapp.js
   - package.json
   - prospectos.ico
 

@@ -606,6 +606,51 @@ def migrar_banco(conexao):
         )
         """
     )
+
+    # Cockpit de conversa: histórico de mensagens trocadas com cada lead.
+    # Serve os dois canais, por isso a referência é (canal, lead_ref) em vez de
+    # FK - as PKs são incompatíveis (leads.place_id TEXT vs instagram_leads.id
+    # INTEGER). `chave_dedup` é o hash da mensagem capturada da janela do
+    # WhatsApp: o UNIQUE parcial evita gravar a mesma mensagem duas vezes
+    # quando o DOM re-renderiza. Mensagens digitadas à mão têm chave NULL, e
+    # NULLs não colidem em UNIQUE no SQLite - ou seja, nunca são bloqueadas.
+    conexao.execute(
+        """
+        CREATE TABLE IF NOT EXISTS mensagens_conversa (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            canal TEXT NOT NULL,
+            lead_ref TEXT NOT NULL,
+            autor TEXT NOT NULL,
+            texto TEXT NOT NULL,
+            enviada_em TEXT NOT NULL,
+            origem TEXT NOT NULL DEFAULT 'manual',
+            chave_dedup TEXT,
+            criada_em TEXT NOT NULL,
+            UNIQUE (canal, lead_ref, chave_dedup)
+        )
+        """
+    )
+
+    # Última análise da negociação feita pela IA para cada conversa. Guardamos
+    # o histórico (uma linha por análise) para o cockpit poder mostrar a mais
+    # recente sem re-chamar a IA a cada abertura da tela.
+    conexao.execute(
+        """
+        CREATE TABLE IF NOT EXISTS analises_conversa (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            canal TEXT NOT NULL,
+            lead_ref TEXT NOT NULL,
+            estagio TEXT NOT NULL,
+            leitura TEXT,
+            objetivo TEXT,
+            resposta_sugerida TEXT,
+            evitar TEXT,
+            provedor TEXT,
+            mensagens_consideradas INTEGER NOT NULL DEFAULT 0,
+            criada_em TEXT NOT NULL
+        )
+        """
+    )
     conexao.commit()
 
     _criar_indices(conexao)
@@ -626,6 +671,8 @@ _INDICES = [
     "CREATE INDEX IF NOT EXISTS idx_ig_leads_proximo_followup ON instagram_leads(proximo_followup)",
     "CREATE INDEX IF NOT EXISTS idx_hist_status ON historico_status(alterado_em, status_novo)",
     "CREATE INDEX IF NOT EXISTS idx_hist_status_ig ON historico_status_instagram(alterado_em, status_novo)",
+    "CREATE INDEX IF NOT EXISTS idx_msg_conversa ON mensagens_conversa(canal, lead_ref, enviada_em)",
+    "CREATE INDEX IF NOT EXISTS idx_analise_conversa ON analises_conversa(canal, lead_ref, criada_em)",
 ]
 
 

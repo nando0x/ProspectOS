@@ -9,6 +9,7 @@ import { useClipboard } from "@/hooks/useClipboard"
 import { ajustarSaudacao } from "@/lib/saudacao"
 import { formatarTempoRelativo } from "@/lib/formatters"
 import { linkWhatsappComMensagem } from "@/services/tarefasService"
+import { conversaService } from "@/services/conversaService"
 import type { UseMutationResult } from "@tanstack/react-query"
 import type { GerarMensagemResposta, Lead } from "@/types/lead"
 
@@ -111,12 +112,15 @@ export function LeadMessageGenerator({
           <Button
             size="sm"
             className="bg-success text-white hover:bg-success/90"
-            onClick={() =>
+            onClick={() => {
+              // avisa de quem é a conversa antes da janela abrir, pro cockpit
+              // vincular as mensagens capturadas ao lead certo
+              conversaService.registrarLeadAtivo("maps", lead.place_id).catch(() => {})
               window.open(
                 linkWhatsappComMensagem(lead.whatsapp_link!, mensagem || null),
                 "_blank"
               )
-            }
+            }}
           >
             <MessageCircle className="size-4" />
             Abrir WhatsApp

@@ -294,9 +294,16 @@ def traduzir_erro_scraper(stderr, returncode):
     texto = (stderr or "").lower()
 
     if "could not install driver" in texto or "playwright" in texto:
+        # o caso mais comum NÃO é falta de Node: é um google-maps-scraper.exe
+        # antigo tentando baixar uma versão do driver do Playwright que a
+        # Microsoft já removeu dos servidores (o download volta 404)
         return (
-            "O scraper não conseguiu iniciar o navegador interno. Confira se o Node.js está "
-            "instalado (veja o LEIA-ME.md) e tente novamente."
+            "O scraper não conseguiu preparar o navegador interno. Causa mais comum: "
+            "seu google-maps-scraper.exe está desatualizado e procura um componente "
+            "(driver do Playwright) que a Microsoft já tirou do ar. Baixe a versão mais "
+            "recente em github.com/gosom/google-maps-scraper/releases e substitua o .exe "
+            "na pasta backend/. Se persistir, confira se o Node.js está instalado. "
+            "Alternativa sem scraper: use a Google Places API em Configurações → Fonte de dados."
         )
     if "no such file" in texto or "not found" in texto:
         return (

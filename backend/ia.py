@@ -19,9 +19,17 @@ from datetime import date, datetime, timedelta
 
 import db
 from constantes import (
+    ESTAGIO_NEGOCIACAO_PADRAO,
+    ESTAGIOS_NEGOCIACAO,
+    MAX_CARACTERES_ITEM_EVITAR,
     MAX_CARACTERES_JUSTIFICATIVA,
+    MAX_CARACTERES_LEITURA_ANALISE,
     MAX_CARACTERES_NICHO_INSTAGRAM,
+    MAX_CARACTERES_OBJETIVO_ANALISE,
+    MAX_CARACTERES_RESPOSTA_SUGERIDA,
     MAX_CARACTERES_SUGESTAO_DM,
+    MAX_ITENS_EVITAR,
+    MAX_MENSAGENS_NO_PROMPT,
     PRIORIDADES_VALIDAS,
 )
 
@@ -632,3 +640,126 @@ def classificar_lead_instagram_com_fallback(perfil, nicho_alvo):
         raise RuntimeError(
             f"nenhum provedor de IA conseguiu classificar o perfil (último erro: {excecao.erro_final})"
         )
+
+
+# ---------------------------------------------------------------------------
+# Analista de negociação (cockpit de conversa)
+# ---------------------------------------------------------------------------
+
+SYSTEM_ANALISTA_CONVERSA = """Você é um consultor de vendas sênior que acompanha negociações reais por WhatsApp entre um freelancer que cria sites e donos de pequenos negócios locais no Brasil. Você lê a conversa até aqui e orienta o próximo passo.
+
+Responda SEMPRE um único objeto JSON válido, sem markdown e sem texto fora do JSON, com EXATAMENTE estas chaves:
+- "estagio": um de "primeiro_contato" (ainda não houve resposta do lead), "descoberta" (respondeu, você ainda está entendendo a situação dele), "interesse" (demonstrou curiosidade ou pediu detalhes), "objecao" (levantou uma barreira: preço, tempo, "já tenho", "não preciso"), "negociacao" (discutindo preço, prazo ou escopo concreto), "fechamento" (perto de fechar, alinhando detalhes finais), "esfriou" (parou de responder ou perdeu o interesse).
+- "leitura": 1-3 frases interpretando o que o lead realmente quis dizer e o que isso revela sobre a chance de fechar. Seja específico sobre ESTA conversa, não genérico.
+- "objetivo": uma frase curta dizendo qual é o próximo objetivo tático AGORA (ex.: "Entender qual é a real dor dele com o site atual antes de falar de preço").
+- "resposta_sugerida": a próxima mensagem pronta para enviar, na voz de quem vende (primeira pessoa do singular). Curta, natural, fácil de responder. Sem saudação repetida se a conversa já está em andamento.
+- "evitar": array de 1 a 4 strings curtas com o que NÃO dizer agora (ex.: "Falar de preço antes dele demonstrar interesse"). Cada item é uma frase objetiva.
+
+Princípios de negociação que você aplica:
+- Nunca empurre. Quem sente pressão trava. O objetivo de cada mensagem é conseguir a PRÓXIMA resposta, não fechar na hora.
+- Objeção não é "não": é pedido de informação. Acolha antes de rebater, e nunca contrarie o lead de frente.
+- Se o lead disse que já tem algo (Instagram, site antigo, sobrinho que mexe), valide o que ele já fez e posicione sua solução como complemento, nunca como substituição do que ele escolheu.
+- Espelhe o nível de formalidade e o tamanho das mensagens do lead. Se ele escreve curto, você escreve curto.
+- Nunca invente dados, preços, prazos, clientes ou resultados que não estejam no contexto fornecido.
+- Se o lead ficou em silêncio, o próximo passo é um follow-up leve que dê saída fácil, nunca cobrança."""
+
+
+def _bloco_historico_conversa(mensagens):
+    """Formata o histórico como uma transcrição legível. Só as últimas
+    MAX_MENSAGENS_NO_PROMPT entram (conversa longa estoura o contexto e as
+    mensagens antigas pesam pouco na decisão do próximo passo)."""
+    if not mensagens:
+        return "(nenhuma mensagem trocada ainda - o primeiro contato ainda não foi enviado)"
+
+    recentes = mensagens[-MAX_MENSAGENS_NO_PROMPT:]
+    omitidas = len(mensagens) - len(recentes)
+    linhas = []
+    if omitidas > 0:
+        linhas.append(f"[... {omitidas} mensagem(ns) mais antiga(s) omitida(s) ...]")
+    for mensagem in recentes:
+        quem = "VOCÊ (vendedor)" if mensagem["autor"] == "vendedor" else "LEAD"
+        quando = (mensagem.get("enviada_em") or "").replace("T", " ")[:16]
+        linhas.append(f"[{quando}] {quem}: {mensagem['texto']}")
+    return "\n".join(linhas)
+
+
+def montar_prompt_analise_conversa(lead, mensagens):
+    """Monta o prompt do analista: dados do negócio + ângulo de venda (situação
+    do site) + transcrição da conversa. Reaproveita os mesmos blocos usados
+    pelas copies, para a análise enxergar exatamente o mesmo contexto."""
+    dados_empresa = _bloco_dados_empresa(
+        lead.get("nome"),
+        lead.get("categoria"),
+        lead.get("endereco"),
+        lead.get("nota"),
+        num_avaliacoes=lead.get("num_avaliacoes"),
+        cidade=lead.get("cidade"),
+        instagram_url=lead.get("instagram_url"),
+    )
+    contexto_site = _contexto_site(lead.get("site_status"), lead.get("site_problemas"))
+    ultima_do_lead = next(
+        (m["texto"] for m in reversed(mensagens) if m["autor"] == "lead"), None
+    )
+    foco = (
+        f'\nA última mensagem do lead foi: "{ultima_do_lead}"\nSua resposta sugerida precisa endereçar '
+        "exatamente isso.\n"
+        if ultima_do_lead
+        else "\nO lead ainda não respondeu nenhuma mensagem.\n"
+    )
+
+    return f"""Negócio com quem você está negociando:
+{dados_empresa}
+
+Contexto da oferta:
+{contexto_site}
+
+Conversa até agora (ordem cronológica):
+{_bloco_historico_conversa(mensagens)}
+{foco}
+Saudação correta para a hora de agora, caso precise saudar: {saudacao_por_horario()}
+
+Analise a negociação e responda com o JSON especificado."""
+
+
+def _parsear_analise_conversa(resposta_bruta):
+    resposta_limpa = (
+        resposta_bruta.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    )
+    dados = json.loads(resposta_limpa)
+
+    estagio = str(dados.get("estagio", "")).strip().lower()
+    if estagio not in ESTAGIOS_NEGOCIACAO:
+        estagio = ESTAGIO_NEGOCIACAO_PADRAO
+
+    evitar_bruto = dados.get("evitar") or []
+    if isinstance(evitar_bruto, str):  # modelo às vezes devolve string única
+        evitar_bruto = [evitar_bruto]
+    evitar = [
+        str(item).strip()[:MAX_CARACTERES_ITEM_EVITAR]
+        for item in list(evitar_bruto)[:MAX_ITENS_EVITAR]
+        if str(item).strip()
+    ]
+
+    return {
+        "estagio": estagio,
+        "leitura": str(dados.get("leitura", "")).strip()[:MAX_CARACTERES_LEITURA_ANALISE],
+        "objetivo": str(dados.get("objetivo", "")).strip()[:MAX_CARACTERES_OBJETIVO_ANALISE],
+        "resposta_sugerida": str(dados.get("resposta_sugerida", "")).strip()[:MAX_CARACTERES_RESPOSTA_SUGERIDA],
+        "evitar": evitar,
+    }
+
+
+def analisar_conversa_com_fallback(lead, mensagens):
+    """Lê o histórico da conversa e devolve (analise, provedor, avisos):
+    estágio da negociação, leitura da situação, próximo objetivo, resposta
+    sugerida e o que evitar. Mesmo fallback de provedores das copies, com
+    modo JSON nativo e temperatura baixa (análise precisa ser consistente)."""
+    user = montar_prompt_analise_conversa(lead, mensagens)
+    return executar_com_fallback(
+        SYSTEM_ANALISTA_CONVERSA,
+        user,
+        parser=_parsear_analise_conversa,
+        descricao_log=f"analisar conversa com {lead.get('nome')}",
+        temperatura=TEMPERATURA_CLASSIFICACAO,
+        formato_json=True,
+    )

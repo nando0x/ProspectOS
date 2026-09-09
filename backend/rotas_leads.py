@@ -353,6 +353,21 @@ def ignorar_em_lote():
     return jsonify({"ok": True, "atualizados": atualizados})
 
 
+@bp.route("/api/leads/<place_id>")
+def obter_lead(place_id):
+    """Um lead pelo place_id, já enriquecido (score, raio-X como objeto).
+    Usado pelo cockpit de conversa, que abre direto por URL sem passar pela lista."""
+    conexao = db.conectar()
+    try:
+        linha = conexao.execute("SELECT * FROM leads WHERE place_id = ?", (place_id,)).fetchone()
+    finally:
+        conexao.close()
+
+    if not linha:
+        return jsonify({"erro": "lead não encontrado"}), 404
+    return jsonify(_enriquecer_lead_para_resposta(dict(linha)))
+
+
 @bp.route("/api/leads/<place_id>", methods=["DELETE"])
 def excluir_lead_definitivamente(place_id):
     """Apaga a linha do banco de vez - sem volta, sem histórico. Só permite excluir

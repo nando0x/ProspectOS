@@ -14,7 +14,7 @@
  *     Ajuda → Verificar atualizações.
  */
 
-const { app, BrowserWindow, Menu, dialog, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require("electron");
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
@@ -24,6 +24,7 @@ let janelaWhatsapp = null;
 let backend = null;
 let backendEncerradoDeProposito = false;
 let atualizacaoBaixada = false;
+let portaBackend = null; // preenchida quando o sidecar anuncia a porta
 
 const ICONE = path.join(__dirname, "prospectos.ico");
 
@@ -80,6 +81,7 @@ function subirBackend() {
     const aoAcharPorta = (porta) => {
       if (resolvido) return;
       resolvido = true;
+      portaBackend = porta;
       resolver(porta);
     };
 
@@ -178,12 +180,75 @@ function abrirWhatsapp(url) {
       partition: "persist:whatsapp",
       nodeIntegration: false,
       contextIsolation: true,
+      // leitor passivo da conversa: só observa o chat aberto e reporta ao app.
+      // Roda isolado e não expõe nada à página (ver preload-whatsapp.js).
+      preload: path.join(__dirname, "preload-whatsapp.js"),
     },
   });
   janelaWhatsapp.webContents.setUserAgent(userAgentChrome());
   janelaWhatsapp.loadURL(destino, { userAgent: userAgentChrome() });
   janelaWhatsapp.on("closed", () => {
     janelaWhatsapp = null;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Ponte entre o leitor passivo do WhatsApp e o backend (cockpit de conversa)
+// ---------------------------------------------------------------------------
+
+/** Só aceita IPC vindo da janela do WhatsApp - a página remota não tem acesso
+ * ao preload, mas a checagem de origem é barata e fecha a porta de vez. */
+function veioDaJanelaWhatsapp(evento) {
+  return (
+    janelaWhatsapp &&
+    !janelaWhatsapp.isDestroyed() &&
+    evento.sender === janelaWhatsapp.webContents
+  );
+}
+
+async function postarNoBackend(rota, corpo) {
+  if (!portaBackend) return null;
+  try {
+    const resposta = await fetch(`http://127.0.0.1:${portaBackend}${rota}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+    return await resposta.json();
+  } catch (erro) {
+    console.error("[ProspectOS] falha ao falar com o backend:", erro.message);
+    return null;
+  }
+}
+
+/** Avisa a interface principal (o cockpit escuta e recarrega o histórico). */
+function avisarInterface(canal, dados) {
+  if (janela && !janela.isDestroyed()) {
+    janela.webContents.send(canal, dados);
+  }
+}
+
+function registrarPonteWhatsapp() {
+  ipcMain.on("whatsapp:mensagens", async (evento, dados) => {
+    if (!veioDaJanelaWhatsapp(evento)) return;
+    const resultado = await postarNoBackend("/api/conversa/ingestao", dados);
+    if (resultado && resultado.novas > 0) {
+      avisarInterface("cockpit:mensagens-novas", resultado);
+    } else if (resultado && resultado.vinculado === false) {
+      // conversa aberta não pertence a nenhum lead: o cockpit mostra o aviso
+      avisarInterface("cockpit:conversa-sem-lead", { telefone: dados.telefone });
+    }
+  });
+
+  ipcMain.on("whatsapp:conversa-mudou", (evento, dados) => {
+    if (!veioDaJanelaWhatsapp(evento)) return;
+    avisarInterface("cockpit:conversa-mudou", dados);
+  });
+
+  ipcMain.on("whatsapp:leitura-falhou", (evento, dados) => {
+    if (!veioDaJanelaWhatsapp(evento)) return;
+    console.warn("[ProspectOS] leitura do WhatsApp falhou:", dados && dados.detalhe);
+    avisarInterface("cockpit:leitura-falhou", dados);
   });
 }
 
@@ -218,6 +283,8 @@ function criarJanela(porta) {
       // a interface é o React servido pelo backend - sem necessidade de Node no renderer
       nodeIntegration: false,
       contextIsolation: true,
+      // expõe só window.prospectOS (flag de desktop + eventos do cockpit)
+      preload: path.join(__dirname, "preload-app.js"),
     },
   });
   rotearLinksExternos(janela.webContents, porta);
@@ -358,6 +425,7 @@ function verificarAtualizacoes(avisar) {
 app.whenReady().then(async () => {
   try {
     montarMenu();
+    registrarPonteWhatsapp();
     const porta = await subirBackend();
     criarJanela(porta);
     configurarAutoUpdate();

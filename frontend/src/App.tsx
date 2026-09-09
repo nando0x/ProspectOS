@@ -8,6 +8,7 @@ import { DashboardPage } from "@/pages/DashboardPage"
 import { TarefasPage } from "@/pages/TarefasPage"
 import { SessaoProspeccaoPage } from "@/pages/SessaoProspeccaoPage"
 import { LeadsMapsPage } from "@/pages/LeadsMapsPage"
+import { ConversaPage } from "@/pages/ConversaPage"
 import { AnalyticsPage } from "@/pages/AnalyticsPage"
 import { InstagramPage } from "@/pages/InstagramPage"
 import { InstagramAnalyticsPage } from "@/pages/InstagramAnalyticsPage"
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="/tarefas" element={<TarefasPage />} />
             <Route path="/sessao" element={<SessaoProspeccaoPage />} />
             <Route path="/leads" element={<LeadsMapsPage />} />
+            <Route path="/conversas/:placeId" element={<ConversaPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/instagram" element={<InstagramPage />} />
             <Route path="/instagram/analytics" element={<InstagramAnalyticsPage />} />

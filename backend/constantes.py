@@ -24,6 +24,44 @@ MAX_CARACTERES_TEXTO_TEMPLATE = 3000
 
 DIAS_PARA_LEAD_DIFICIL = 5
 
+# ---------------------------------------------------------------------------
+# Cockpit de conversa (histórico por lead + análise da negociação por IA)
+# ---------------------------------------------------------------------------
+
+CANAIS_CONVERSA = {"maps", "instagram"}
+
+# quem escreveu cada mensagem do histórico
+AUTORES_MENSAGEM = {"vendedor", "lead"}
+
+# de onde a mensagem veio: capturada da janela do WhatsApp, digitada à mão no
+# cockpit, ou registrada pelo próprio app ao enviar
+ORIGENS_MENSAGEM = {"whatsapp", "manual", "app"}
+
+# Estágios da negociação que a IA pode devolver. Ordem = progressão natural;
+# "esfriou" é uma saída lateral, não um avanço.
+ESTAGIOS_NEGOCIACAO = [
+    "primeiro_contato",
+    "descoberta",
+    "interesse",
+    "objecao",
+    "negociacao",
+    "fechamento",
+    "esfriou",
+]
+ESTAGIO_NEGOCIACAO_PADRAO = "descoberta"
+
+MAX_CARACTERES_MENSAGEM_CONVERSA = 10_000
+MAX_MENSAGENS_POR_LEAD = 2000
+# quantas mensagens (mais recentes) entram no prompt da análise
+MAX_MENSAGENS_NO_PROMPT = 40
+MAX_CARACTERES_LEITURA_ANALISE = 600
+MAX_CARACTERES_OBJETIVO_ANALISE = 300
+MAX_CARACTERES_RESPOSTA_SUGERIDA = 2000
+MAX_ITENS_EVITAR = 5
+MAX_CARACTERES_ITEM_EVITAR = 200
+# teto por requisição de ingestão vinda da janela do WhatsApp
+MAX_MENSAGENS_POR_INGESTAO = 200
+
 # Limite de ids por ação em lote. Protege contra o limite de variáveis vinculadas
 # do SQLite (~999) num IN (...) e contra payloads absurdos.
 MAX_IDS_BULK = 500

@@ -70,9 +70,12 @@ def _ler_job(job_id):
 
 class TestTraduzirErroScraper:
     def test_erro_de_driver_playwright(self):
+        # o caso do usuário real: scraper antigo procurando driver que a
+        # Microsoft removeu - a mensagem tem que apontar pra atualização do .exe
         msg = jobs.traduzir_erro_scraper("Error: could not install driver", 1)
-        assert "navegador interno" in msg
-        assert "Node.js" in msg
+        assert "desatualizado" in msg
+        assert "releases" in msg
+        assert "Places API" in msg
 
     def test_erro_menciona_playwright(self):
         msg = jobs.traduzir_erro_scraper("playwright install failed", 1)
