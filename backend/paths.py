@@ -7,11 +7,15 @@ Dois modos de execução:
 - **Empacotado** (PyInstaller, `sys.frozen`): o código e os recursos viram um bundle
   read-only (possivelmente em Program Files), então os dados do usuário (banco,
   backups, saídas, sessão do Instagram) PRECISAM ir para uma pasta gravável —
-  `%APPDATA%\\ProspectOS`. Sem essa separação, o app instalado não consegue gravar
-  nada e um update apagaria os leads.
+  `%APPDATA%\\ProspectOS` no Windows ou `XDG_DATA_HOME/ProspectOS` no Linux.
+  Sem essa separação, o app instalado não consegue gravar nada e um update apagaria
+  os leads.
+
+**Docker / Linux nativo:** defina `PROSPECTOS_DATA_DIR` (ex.: `/data`) para separar
+dados graváveis do código da imagem.
 
 Regra prática para os outros módulos:
-- arquivo que o app só LÊ e vem junto do código (scraper .exe, os .py do instagram,
+- arquivo que o app só LÊ e vem junto do código (scraper, os .py do instagram,
   o build do frontend) → `caminho_recurso(...)`
 - arquivo que o app ESCREVE (leads.db, backups/, saidas/, queries.txt, logs/,
   instagram/sessao/, instagram/comentarios/) → `caminho_dados(...)`
@@ -26,14 +30,30 @@ EMPACOTADO = bool(getattr(sys, "frozen", False))
 
 _DIR_FONTE = Path(__file__).parent
 
+
+def _resolver_dir_dados():
+    """Pasta gravável: env explícito > empacotado por SO > pasta do backend (dev)."""
+    if os.environ.get("PROSPECTOS_DATA_DIR"):
+        return Path(os.environ["PROSPECTOS_DATA_DIR"])
+
+    if EMPACOTADO:
+        if sys.platform == "win32":
+            return Path(os.environ.get("APPDATA", str(Path.home()))) / "ProspectOS"
+        xdg = os.environ.get("XDG_DATA_HOME")
+        base = Path(xdg) if xdg else Path.home() / ".local" / "share"
+        return base / "ProspectOS"
+
+    return _DIR_FONTE
+
+
 if EMPACOTADO:
     # --onedir: recursos adicionados via --add-data ficam em sys._MEIPASS
     # (na prática a pasta _internal ao lado do .exe)
     DIR_RECURSOS = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
-    DIR_DADOS = Path(os.environ.get("APPDATA", str(Path.home()))) / "ProspectOS"
 else:
     DIR_RECURSOS = _DIR_FONTE
-    DIR_DADOS = _DIR_FONTE
+
+DIR_DADOS = _resolver_dir_dados()
 
 
 def caminho_recurso(*partes):

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AnimatePresence } from "framer-motion"
 import { LayoutGrid, List, Loader2, Trash2 } from "lucide-react"
 import { useLeads } from "@/hooks/useLeads"
@@ -42,12 +42,12 @@ export function LeadGrid({
 }: LeadGridProps) {
   const [visualizacao, setVisualizacao] = useState<"lista" | "kanban">("lista")
 
+  // Kanban precisa de todos os status do funil — não aplica filtro de status
   const filtrosEfetivos: FiltrosLeads =
     visualizacao === "kanban" ? { ...filtros, status: "" } : filtros
 
   const { leads, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } =
     useLeads(filtrosEfetivos)
-  // ao trocar filtro/visualização, a seleção zera (não age em leads invisíveis)
   const { selecionados, alternar, limpar, quantidade } = useSelecaoLeads(
     JSON.stringify(filtrosEfetivos)
   )
@@ -56,41 +56,46 @@ export function LeadGrid({
 
   const sentinelaRef = useIntersectionObserver(
     () => fetchNextPage(),
-    Boolean(hasNextPage) && !isFetchingNextPage
+    visualizacao === "lista" && Boolean(hasNextPage) && !isFetchingNextPage
   )
 
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-[150px]" />
-        ))}
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (visualizacao === "kanban" && hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage()
+    }
+  }, [visualizacao, hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  if (leads.length === 0) {
-    return (
-      <EmptyState
-        filtrosEmUso={filtrosEmUso}
-        onLimparFiltros={onLimparFiltros}
-        onNovaBusca={onNovaBusca}
-      />
-    )
-  }
+  const kanbanCarregando =
+    visualizacao === "kanban" && (isLoading || hasNextPage || isFetchingNextPage)
 
   const leadsForaDoFunil = leads.filter((l) =>
     ["recusou", "ignorado"].includes(l.status)
   ).length
+  const leadsNoFunil = leads.length - leadsForaDoFunil
 
   return (
-    <div>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
-          {leads.length} lead(s) carregado(s)
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          {visualizacao === "kanban" ? (
+            kanbanCarregando ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                Carregando leads do Kanban…
+              </>
+            ) : (
+              `${leadsNoFunil} lead(s) no funil`
+            )
+          ) : isLoading ? (
+            "Carregando…"
+          ) : (
+            `${leads.length} lead(s) carregado(s)`
+          )}
         </p>
+
         <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className={cn("h-7 px-2", visualizacao === "lista" && "bg-accent")}
@@ -100,6 +105,7 @@ export function LeadGrid({
             Lista
           </Button>
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className={cn("h-7 px-2", visualizacao === "kanban" && "bg-accent")}
@@ -110,7 +116,7 @@ export function LeadGrid({
           </Button>
         </div>
 
-        {modoIgnorados && (
+        {modoIgnorados && visualizacao === "lista" && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
@@ -151,40 +157,51 @@ export function LeadGrid({
         )}
       </div>
 
-      {visualizacao === "kanban" ? (
+      {isLoading && leads.length === 0 ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-[150px]" />
+          ))}
+        </div>
+      ) : leads.length === 0 ? (
+        <EmptyState
+          filtrosEmUso={filtrosEmUso}
+          onLimparFiltros={onLimparFiltros}
+          onNovaBusca={onNovaBusca}
+        />
+      ) : visualizacao === "kanban" ? (
         <>
-          <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen px-4 sm:px-6">
-            <KanbanBoard leads={leads} onSelecionarLead={onSelecionarLead} />
-          </div>
+          <KanbanBoard leads={leads} onSelecionarLead={onSelecionarLead} />
           {leadsForaDoFunil > 0 && (
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {leadsForaDoFunil} lead(s) recusado(s)/ignorado(s) não aparecem
               no Kanban — use a visualização em Lista para vê-los.
             </p>
           )}
         </>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {leads.map((lead) => (
-            <LeadCard
-              key={lead.place_id}
-              lead={lead}
-              onClick={() => onSelecionarLead(lead)}
-              selecionado={selecionados.has(lead.place_id)}
-              onAlternarSelecao={() => alternar(lead.place_id)}
-            />
-          ))}
-        </div>
-      )}
-
-      {visualizacao === "lista" && hasNextPage && (
-        <div ref={sentinelaRef} className="flex justify-center py-6">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {leads.map((lead) => (
+              <LeadCard
+                key={lead.place_id}
+                lead={lead}
+                onClick={() => onSelecionarLead(lead)}
+                selecionado={selecionados.has(lead.place_id)}
+                onAlternarSelecao={() => alternar(lead.place_id)}
+              />
+            ))}
+          </div>
+          {hasNextPage && (
+            <div ref={sentinelaRef} className="flex justify-center py-6">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
+        </>
       )}
 
       <AnimatePresence>
-        {quantidade > 0 && (
+        {quantidade > 0 && visualizacao === "lista" && (
           <BulkActionsBar
             placeIdsSelecionados={Array.from(selecionados)}
             onLimparSelecao={limpar}

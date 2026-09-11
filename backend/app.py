@@ -9,6 +9,7 @@ http://localhost:5173 - use o iniciar.bat na raiz pra subir os dois juntos.
 O código está dividido por responsabilidade:
     rotas_leads.py      - CRM dos leads do Google Maps + disparo da busca
     rotas_instagram.py  - CRM dos leads do Instagram + disparo da análise
+    rotas_conversa.py   - cockpit de negociação (histórico WhatsApp + análise IA)
     rotas_analytics.py  - métricas, funis, meta semanal, follow-ups do dia
     rotas_config.py     - chaves de IA, proxies, templates de mensagem
     ia.py               - provedores de IA e fallback unificado
@@ -145,16 +146,16 @@ if __name__ == "__main__":
         # dev com auto-reload do Flask, comportamento de sempre
         app.run(debug=True, port=5000)
     else:
-        porta = escolher_porta(5000)
-        # anuncia a porta pra quem iniciou o processo (shell do app de desktop lê
-        # o stdout; o arquivo cobre quem preferir ler do disco). Empacotado sem
-        # console, sys.stdout pode ser None - o arquivo vira a fonte da verdade.
+        porta = int(os.environ.get("PROSPECTOS_PORT", "5000"))
+        if not os.environ.get("PROSPECTOS_PORT"):
+            porta = escolher_porta(5000)
+        host = os.environ.get("PROSPECTOS_HOST", "127.0.0.1")
         try:
             print(f"LISTENING_ON={porta}", flush=True)
         except Exception:
             pass
         paths.caminho_dados("porta.txt", criar_pai=True).write_text(str(porta), encoding="utf-8")
-        logger.info("servindo em http://127.0.0.1:%s", porta)
+        logger.info("servindo em http://%s:%s", host, porta)
 
         # empacotado não tem iniciar.bat: o próprio app abre a interface - exceto
         # quando quem subiu o backend foi o shell de desktop (Electron), que tem
@@ -165,4 +166,4 @@ if __name__ == "__main__":
         # waitress: servidor WSGI de produção (o dev server do Flask não é pra isso)
         from waitress import serve
 
-        serve(app, host="127.0.0.1", port=porta, threads=8)
+        serve(app, host=host, port=porta, threads=8)

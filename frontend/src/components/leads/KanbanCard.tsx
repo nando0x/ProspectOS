@@ -39,12 +39,12 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
       }}
       aria-label={`Abrir detalhes de ${lead.nome}`}
       className={cn(
-        "cursor-grab flex flex-col gap-1.5 rounded-lg border border-border bg-card p-3 text-left text-sm shadow-sm transition-colors hover:bg-accent/40 active:cursor-grabbing",
+        "min-w-0 w-full cursor-grab flex flex-col gap-1.5 rounded-lg border border-border bg-card p-3 text-left text-sm shadow-sm transition-colors hover:bg-accent/40 active:cursor-grabbing",
         vencido && "ring-2 ring-warning"
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <h4 className="font-medium leading-snug">{lead.nome}</h4>
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <h4 className="min-w-0 flex-1 truncate font-medium leading-snug">{lead.nome}</h4>
         <div className="flex flex-col items-end gap-1">
           {vencido && <FollowupBadge />}
           {lead.lead_dificil && <LeadDificilBadge />}
